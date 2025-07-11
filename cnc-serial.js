@@ -638,6 +638,14 @@ class CNCSerial {
     this.go_machine_zero_button.disabled = !enabled;
   }
   
+  set_step_size(size) {
+    this.step_size_input.value = size;
+  }
+  
+  get_step_size() {
+    return parseFloat(this.step_size_input.value) || 1;
+  }
+  
   async home_all() {
     if (!this.is_connected) {
       this.show_error('Not connected to CNC');
