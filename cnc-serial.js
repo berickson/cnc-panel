@@ -4,6 +4,7 @@ class CNCSerial {
         this.reader = null;
         this.writer = null;
         this.isConnected = false;
+        this.messageBuffer = ''; // Add buffer for partial messages
         
         // UI elements
         this.connectBtn = document.getElementById('connectBtn');
@@ -11,7 +12,7 @@ class CNCSerial {
         this.statusBtn = document.getElementById('statusBtn');
         this.statusIndicator = document.getElementById('statusIndicator');
         this.statusText = document.getElementById('statusText');
-        this.log = document.getElementById('log');
+        this.logElement = document.getElementById('log');
         this.errorContainer = document.getElementById('errorContainer');
         
         // Status elements
@@ -143,6 +144,7 @@ class CNCSerial {
             }
             
             this.isConnected = false;
+            this.messageBuffer = ''; // Clear buffer on disconnect
             this.updateConnectionStatus();
             this.log('Disconnected');
             
@@ -159,12 +161,37 @@ class CNCSerial {
                 
                 const text = new TextDecoder().decode(value);
                 this.log(`← ${text.trim()}`);
-                this.parseResponse(text);
+                
+                // Add to buffer and process complete messages
+                this.messageBuffer += text;
+                this.processBuffer();
             }
         } catch (error) {
             if (this.isConnected) {
                 this.log(`Read error: ${error.message}`);
             }
+        }
+    }
+    
+    processBuffer() {
+        let lines = this.messageBuffer.split('\n');
+        
+        // Keep the last line in buffer (might be incomplete)
+        this.messageBuffer = lines.pop() || '';
+        
+        // Process complete lines
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed) {
+                this.parseResponse(trimmed);
+            }
+        }
+        
+        // Also check for complete status messages that might not end with newline
+        const statusMatch = this.messageBuffer.match(/<[^>]*>/);
+        if (statusMatch) {
+            this.parseResponse(statusMatch[0]);
+            this.messageBuffer = this.messageBuffer.replace(statusMatch[0], '');
         }
     }
     
@@ -199,9 +226,9 @@ class CNCSerial {
                 // Machine state (Idle, Run, Hold, etc.)
                 this.machineState.textContent = parts[0];
                 
-                // Parse work position
+                // Parse work position or machine position
                 for (const part of parts) {
-                    if (part.startsWith('WPos:')) {
+                    if (part.startsWith('WPos:') || part.startsWith('MPos:')) {
                         const coords = part.substring(5).split(',');
                         if (coords.length >= 3) {
                             this.xPosition.textContent = parseFloat(coords[0]).toFixed(3);
@@ -247,8 +274,8 @@ class CNCSerial {
     
     log(message) {
         const timestamp = new Date().toLocaleTimeString();
-        this.log.textContent += `[${timestamp}] ${message}\n`;
-        this.log.scrollTop = this.log.scrollHeight;
+        this.logElement.textContent += `[${timestamp}] ${message}\n`;
+        this.logElement.scrollTop = this.logElement.scrollHeight;
     }
     
     showError(message) {
