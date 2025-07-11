@@ -77,6 +77,9 @@ class CNCSerial {
     
     this.initialize_event_listeners();
     this.check_web_serial_support();
+    
+    // Auto-connect if previously authorized ports are available
+    this.auto_connect();
   }
   
   check_web_serial_support() {
@@ -263,7 +266,11 @@ class CNCSerial {
   async connect() {
     try {
       this.clear_error();
-      this.log('Attempting to connect...');
+      
+      // Only log "Attempting to connect..." if this is a manual connection
+      if (!this.port) {
+        this.log('Attempting to connect...');
+      }
       
       // Double-check support before attempting connection
       if (!this.check_web_serial_support()) {
@@ -738,6 +745,28 @@ class CNCSerial {
     }).catch(err => {
       this.show_error('Failed to copy log: ' + err.message);
     });
+  }
+  
+  async auto_connect() {
+    try {
+      // Only attempt auto-connect if Web Serial is supported
+      if (!this.check_web_serial_support()) {
+        return;
+      }
+      
+      // Check for previously authorized ports
+      const available_ports = await navigator.serial.getPorts();
+      
+      if (available_ports.length > 0) {
+        this.log(`Auto-connecting to previously authorized port...`);
+        await this.connect();
+      } else {
+        this.log('No previously authorized ports found. Click "Connect to CNC" to select a port.');
+      }
+    } catch (error) {
+      this.log(`Auto-connect failed: ${error.message}`);
+      // Don't show error for auto-connect failure, just log it
+    }
   }
 }
 
