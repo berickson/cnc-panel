@@ -159,10 +159,17 @@ class CNCSerial {
         return;
       }
       
-      this.log('Requesting serial port...');
+      // Try to get previously authorized ports first
+      const available_ports = await navigator.serial.getPorts();
       
-      // Request a port and open a connection
-      this.port = await navigator.serial.requestPort();
+      if (available_ports.length > 0) {
+        this.log(`Found ${available_ports.length} previously authorized port(s), using the first one...`);
+        this.port = available_ports[0];
+      } else {
+        this.log('No previously authorized ports found, requesting new port...');
+        // Request a port and open a connection
+        this.port = await navigator.serial.requestPort();
+      }
       
       this.log('Opening connection at 115200 baud...');
       await this.port.open({ baudRate: 115200 });
