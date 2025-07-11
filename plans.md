@@ -10,7 +10,6 @@
 - ✅ Communication logging with copy functionality
 
 ### Phase 2: Manual Controls
-- ✅ Emergency stop functionality
 - ✅ Basic jog controls (X/Y/Z axes)
 - ✅ **Advanced tap/hold jogging**:
   - ✅ Tap for stepped movement
@@ -19,6 +18,7 @@
 - ✅ Configurable step sizes (0.1mm, 1mm, 10mm)
 - ✅ Touch support for mobile devices
 - ✅ Homing operations (all axes and individual)
+- ✅ **Removed software emergency stop** (hardware e-stop is safer and more reliable)
 
 ### Phase 3: Work Coordinate System
 - ✅ Enhanced position display (MPos and WPos)
@@ -119,10 +119,10 @@ The CNC panel now provides professional-grade manual control functionality with:
 ## Safety and Reliability
 
 ### Implemented Safety Features
-- ✅ Emergency stop with immediate response
 - ✅ Connection state validation before commands
 - ✅ Comprehensive error handling and user feedback
 - ✅ Safe coordinate system operations
+- ✅ **Reliance on hardware emergency stop** for maximum safety
 
 ### Planned Safety Enhancements
 - [ ] Soft limits enforcement
@@ -130,6 +130,8 @@ The CNC panel now provides professional-grade manual control functionality with:
 - [ ] Collision detection warnings
 - [ ] Safe height management for tool changes
 - [ ] Automatic recovery procedures
+
+**Safety Philosophy**: This software intentionally does not implement a software emergency stop, as hardware-based emergency stops are significantly more reliable and faster. Always ensure your CNC machine's hardware emergency stop is functional and easily accessible during operation.
 
 ## Testing and Validation
 

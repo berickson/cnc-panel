@@ -25,7 +25,6 @@ class CNCSerial {
     this.copy_log_button = document.getElementById('copy_log_button');
     
     // Manual control elements
-    this.emergency_stop_button = document.getElementById('emergency_stop_button');
     this.step_size_input = document.getElementById('step_size_input');
     this.step_01_button = document.getElementById('step_01_button');
     this.step_1_button = document.getElementById('step_1_button');
@@ -119,9 +118,6 @@ class CNCSerial {
     this.disconnect_button.addEventListener('click', () => this.disconnect());
     this.status_button.addEventListener('click', () => this.request_status());
     this.copy_log_button.addEventListener('click', () => this.copy_log());
-    
-    // Emergency stop
-    this.emergency_stop_button.addEventListener('click', () => this.emergency_stop());
     
     // Step size controls
     this.step_01_button.addEventListener('click', () => this.set_step_size(0.1));
@@ -590,7 +586,6 @@ class CNCSerial {
       this.status_button.disabled = false;
       
       // Enable manual controls when connected
-      this.emergency_stop_button.disabled = false;
       this.enable_jog_controls(true);
     } else {
       this.status_indicator.classList.remove('connected');
@@ -600,7 +595,6 @@ class CNCSerial {
       this.status_button.disabled = true;
       
       // Disable manual controls when disconnected
-      this.emergency_stop_button.disabled = true;
       this.enable_jog_controls(false);
       
       // Reset status display
@@ -642,77 +636,6 @@ class CNCSerial {
     this.zero_xy_button.disabled = !enabled;
     this.go_work_zero_button.disabled = !enabled;
     this.go_machine_zero_button.disabled = !enabled;
-  }
-  
-  emergency_stop() {
-    if (!this.is_connected) {
-      this.show_error('Not connected to CNC');
-      return;
-    }
-    
-    this.log('EMERGENCY STOP triggered');
-    // Send immediate halt command (real-time command, doesn't need \n)
-    if (this.writer) {
-      this.writer.write(new TextEncoder().encode('!'));
-      this.log('→ ! (Emergency Stop)');
-    }
-  }
-  
-  set_step_size(size) {
-    this.step_size_input.value = size;
-  }
-  
-  get_step_size() {
-    return parseFloat(this.step_size_input.value) || 1;
-  }
-  
-  async jog(axis, direction) {
-    return this.jog_single_step(axis, direction);
-  }
-  
-  async jog_single_step(axis, direction) {
-    if (!this.is_connected) {
-      this.show_error('Not connected to CNC');
-      return;
-    }
-    
-    const step_size = this.get_step_size();
-    const distance = direction === '+' ? step_size : -step_size;
-    const command = `$J=G91${axis}${distance}F1000`;
-    
-    await this.send_command(command);
-  }
-  
-  start_continuous_jog(axis, direction) {
-    if (!this.is_connected) {
-      this.show_error('Not connected to CNC');
-      return;
-    }
-    
-    this.is_jogging_continuous = true;
-    this.log(`Starting continuous jog ${axis}${direction}`);
-    
-    // Send continuous jog command - use proper $J= format with large distance
-    const feed_rate = 1000; // mm/min
-    const distance = direction === '+' ? '1000' : '-1000';
-    const command = `$J=G91${axis}${distance}F${feed_rate}`;
-    this.send_command(command);
-  }
-  
-  async stop_continuous_jog() {
-    if (!this.is_connected || !this.is_jogging_continuous) {
-      return;
-    }
-    
-    this.is_jogging_continuous = false;
-    this.log('Stopping continuous jog');
-    
-    // Send jog cancel command (real-time command) - try the proper jog cancel
-    if (this.writer) {
-      // Use 0x85 (133) which is the proper jog cancel command for Grbl
-      await this.writer.write(new Uint8Array([0x85]));
-      this.log('→ (Jog Cancel 0x85)');
-    }
   }
   
   async home_all() {

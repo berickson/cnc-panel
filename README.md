@@ -7,7 +7,6 @@ A progressive web application for controlling the Genmitsu 3030 ProVer max CNC m
 - Framework-free HTML/JavaScript implementation
 - Direct serial communication via Web Serial API
 - Real-time status monitoring with activity-based updates
-- Emergency stop functionality
 - **Advanced manual jog controls** with tap/hold functionality:
   - **Tap**: Precise stepped movement using configurable step sizes (0.1mm, 1mm, 10mm)
   - **Hold**: Continuous jogging until button release
@@ -88,7 +87,6 @@ If you want to control the CNC from a different computer, you have two options:
   - Auto-connect to previously paired USB devices
   - Connect/disconnect to CNC via USB with detailed error handling
 - **Status Monitoring**: Real-time machine state and position display with high-frequency updates during jogging (20Hz)
-- **Emergency Stop**: Immediate halt command (!) for safety
 - **Advanced Manual Controls**: 
   - **Tap jogging**: Quick press for precise stepped movement
   - **Hold jogging**: Continuous movement while button is held down
@@ -101,6 +99,8 @@ If you want to control the CNC from a different computer, you have two options:
 - **Communication Log**: View all commands sent and responses received with copy functionality
 - **Activity Detection**: Automatic status updates when external jogging is detected (built-in controller) with 2-second settling time
 - **Error Handling**: Clear error messages for troubleshooting and connection issues
+
+**Note**: This software relies on the hardware emergency stop button on your CNC machine for safety. Always ensure your hardware e-stop is functional before operation.
 
 ### Browser Compatibility
 
