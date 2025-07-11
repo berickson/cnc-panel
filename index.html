@@ -120,13 +120,13 @@
     
     <div class="panel">
         <div class="status">
-            <div class="status-indicator" id="statusIndicator"></div>
-            <span id="statusText">Disconnected</span>
+            <div class="status-indicator" id="status_indicator"></div>
+            <span id="status_text">Disconnected</span>
         </div>
         
-        <button id="connectBtn">Connect to CNC</button>
-        <button id="disconnectBtn" disabled>Disconnect</button>
-        <button id="statusBtn" disabled>Request Status</button>
+        <button id="connect_button">Connect to CNC</button>
+        <button id="disconnect_button" disabled>Disconnect</button>
+        <button id="status_button" disabled>Request Status</button>
     </div>
     
     <div class="panel">
@@ -134,29 +134,29 @@
         <div class="info-grid">
             <div class="info-item">
                 <div class="info-label">State</div>
-                <div class="info-value" id="machineState">Unknown</div>
+                <div class="info-value" id="machine_state">Unknown</div>
             </div>
             <div class="info-item">
                 <div class="info-label">X Position</div>
-                <div class="info-value" id="xPosition">0.000</div>
+                <div class="info-value" id="x_position">0.000</div>
             </div>
             <div class="info-item">
                 <div class="info-label">Y Position</div>
-                <div class="info-value" id="yPosition">0.000</div>
+                <div class="info-value" id="y_position">0.000</div>
             </div>
             <div class="info-item">
                 <div class="info-label">Z Position</div>
-                <div class="info-value" id="zPosition">0.000</div>
+                <div class="info-value" id="z_position">0.000</div>
             </div>
         </div>
     </div>
     
     <div class="panel">
         <h3>Communication Log</h3>
-        <div class="log" id="log"></div>
+        <div class="log" id="communication_log"></div>
     </div>
     
-    <div id="errorContainer"></div>
+    <div id="error_container"></div>
 
     <script src="cnc-serial.js"></script>
 </body>
