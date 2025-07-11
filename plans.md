@@ -1,101 +1,161 @@
-cnc-panel will be a progressive web application that can be used to do basic CNC operations over a serial
-cnc-panel should be "framework free" using standard html
-Operations will include things like homing, probing, launching jobs, showing status, etc.
-It can be run from a web page directly, or in "panel mode"
-The initial target will ONLY be for my Genmitsu 3030 ProVer max CNC
+# CNC Panel Development Plans
 
 ## Completed Features ✅
-- ✅ Web Serial API connection management with feature detection
-- ✅ Browser compatibility checking (Chrome/Edge requirement)
-- ✅ Serial connection with proper error handling and user feedback
-- ✅ Real-time status display (machine state, X/Y/Z positions)
-- ✅ Activity-based status monitoring (updates when jogging manually)
-- ✅ Communication log with copy functionality
-- ✅ Connection status indicator
-- ✅ Grbl firmware integration (115200 baud, status parsing)
-- ✅ Response buffering for multi-chunk messages
-- ✅ Command tracking to distinguish external vs internal activity
-- ✅ Emergency stop functionality (immediate halt command)
-- ✅ Manual jog controls for X/Y/Z axes with configurable step sizes
-- ✅ Homing operations (all axes and individual axes)
-- ✅ Work coordinate system (G54) zero setting with individual and combined axis controls
-- ✅ Enhanced position display showing both machine (MPos) and work (WPos) coordinates
-- ✅ Safe navigation to work and machine coordinates (preserving Z height)
 
-## Next Implementation Steps
-1. **Feed rate controls** - Adjust feed rate and spindle speed overrides
-2. **File operations** - Load and send G-code files to CNC
-3. **Probing workflows** - Tool length and workpiece probing routines
-4. **Spindle control** - Start/stop spindle with speed control
+### Phase 1: Basic Connection and Status
+- ✅ Web Serial API implementation
+- ✅ Connection management with error handling
+- ✅ Real-time status monitoring
+- ✅ Auto-connection to previously paired devices
+- ✅ Communication logging with copy functionality
 
-## Zeroing Implementation Plan
+### Phase 2: Manual Controls
+- ✅ Emergency stop functionality
+- ✅ Basic jog controls (X/Y/Z axes)
+- ✅ **Advanced tap/hold jogging**:
+  - ✅ Tap for stepped movement
+  - ✅ Hold for continuous movement
+  - ✅ Proper jog cancel implementation
+- ✅ Configurable step sizes (0.1mm, 1mm, 10mm)
+- ✅ Touch support for mobile devices
+- ✅ Homing operations (all axes and individual)
 
-### Work Coordinate System (WCS) Zero Setting
-The zeroing functionality will allow users to set the work coordinate system origin (G54) at the current machine position.
+### Phase 3: Work Coordinate System
+- ✅ Enhanced position display (MPos and WPos)
+- ✅ Work coordinate zero setting (individual and combined axes)
+- ✅ WCO (Work Coordinate Offset) parsing and calculation
+- ✅ Auto-detection of existing work coordinate offsets
+- ✅ Safe navigation to work/machine coordinates
+- ✅ Removed confirmation dialogs for faster workflow
 
-#### UI Components
-- **Zero All Axes** - Set X, Y, and Z zero at current position (`G10 L20 P1 X0 Y0 Z0`)
-- **Zero Individual Axes** - Set X, Y, or Z zero independently
-  - X0: `G10 L20 P1 X0`
-  - Y0: `G10 L20 P1 Y0`  
-  - Z0: `G10 L20 P1 Z0`
-  - X0Y0: `G10 L20 P1 X0 Y0` (common operation)
-- **Safe Navigation** - Move without affecting Z height
-  - Go X0Y0: `G0 X0 Y0` (go to work zero, preserve Z)
-  - Go Machine Zero: `G53 G0 X0 Y0` (go to machine zero, preserve Z)
-- **Current WCS Display** - Show current work coordinates vs machine coordinates
+### Phase 4: Activity Detection and Status Updates
+- ✅ High-frequency status polling during activity (20Hz)
+- ✅ 2-second settling time after jogging stops
+- ✅ Detection of external activity (built-in controller)
+- ✅ Command tracking to distinguish internal vs external commands
 
-#### Technical Implementation
-1. **Zero Setting Commands**:
-   - Use `G10 L20 P1` commands to set work coordinate system offsets
-   - P1 = G54 coordinate system (most common)
-   - L20 = Set coordinate system origin at current position
+## Current Status
 
-2. **Position Display Enhancement**:
-   - Show both Machine Position (MPos) and Work Position (WPos)
-   - Parse both from Grbl status reports
-   - Highlight which coordinate system is currently displayed
+The CNC panel now provides professional-grade manual control functionality with:
+- **Professional jogging behavior**: Tap for precision, hold for positioning
+- **Real-time position feedback**: Both machine and work coordinates
+- **Intelligent activity detection**: Responds to both web and built-in controller usage
+- **Fast workflow**: No confirmation dialogs, immediate zero setting
 
-3. **Safety Considerations**:
-   - Confirm dialog before setting zeros (especially Z-axis)
-   - Navigation commands preserve Z height to avoid crashes
-   - Visual indication when WCS is set vs machine coordinates
+## Next Development Priorities
 
-#### UI Layout Plan
-```
-┌─ Work Coordinate System ─────────────────┐
-│ Current Position:                        │
-│ [MPos] X: 15.234  Y: 23.156  Z: -2.500  │
-│ [WPos] X:  1.234  Y:  3.156  Z:  0.000  │
-│                                          │
-│ Set Zero:                                │
-│ [All 0] [X0] [Y0] [Z0] [X0Y0]           │
-│                                          │
-│ Navigation:                              │
-│ [Go X0Y0] [Go Machine X0Y0]              │
-└──────────────────────────────────────────┘
-```
+### Phase 5: Feed Rate and Overrides
+- [ ] Real-time feed rate override controls (10-200%)
+- [ ] Spindle speed override controls  
+- [ ] Rapid rate override controls
+- [ ] Display current override percentages
 
-#### Commands to Implement
-- `G10 L20 P1 X0 Y0 Z0` - Zero all axes (All 0 button)
-- `G10 L20 P1 X0` - Zero X axis only (X0 button)
-- `G10 L20 P1 Y0` - Zero Y axis only (Y0 button)
-- `G10 L20 P1 Z0` - Zero Z axis only (Z0 button)
-- `G10 L20 P1 X0 Y0` - Zero X and Y axes (X0Y0 button)
-- `G0 X0 Y0` - Go to work X0Y0, preserve Z (Go X0Y0 button)
-- `G53 G0 X0 Y0` - Go to machine X0Y0, preserve Z (Go Machine X0Y0 button)
-- `G54` - Ensure G54 coordinate system is active
+### Phase 6: Spindle Control
+- [ ] Spindle start/stop control
+- [ ] Spindle speed setting (RPM)
+- [ ] Spindle direction control (CW/CCW)
+- [ ] Coolant control (if applicable)
 
-#### Status Display Updates
-- Parse both MPos and WPos from status reports
-- Toggle between coordinate system displays
-- Color coding: Machine coords (blue), Work coords (green)
-- Show active coordinate system (G54/G55/etc.)
+### Phase 7: G-code File Handling
+- [ ] G-code file upload and parsing
+- [ ] G-code preview and validation
+- [ ] Job execution with start/stop/pause controls
+- [ ] Progress tracking and time estimation
+- [ ] Job queue management
 
-## Technical Architecture
-- Framework-free HTML/CSS/JavaScript
-- Web Serial API for direct USB communication
-- Client-side only (no backend server required)
-- Progressive Web App capabilities for offline use
+### Phase 8: Probing and Tool Management
+- [ ] Probe connectivity detection
+- [ ] Tool length measurement workflows
+- [ ] Workpiece probing (corner finding, surface detection)
+- [ ] Tool change procedures
+- [ ] Tool library management
+
+### Phase 9: Advanced Features
+- [ ] Macro system for common operations
+- [ ] Job templates and presets
+- [ ] Machine configuration backup/restore
+- [ ] Performance logging and analytics
+
+### Phase 10: Panel Mode
+- [ ] Kiosk/fullscreen mode for dedicated panel use
+- [ ] Large button interfaces for workshop environment
+- [ ] Simplified operator interface
+- [ ] Multi-user access controls
+
+## Technical Debt and Improvements
+
+### Code Quality
+- [ ] Add comprehensive error handling for all Grbl error codes
+- [ ] Implement unit tests for core functionality
+- [ ] Add TypeScript for better type safety
+- [ ] Code documentation and inline comments
+
+### User Experience
+- [ ] Keyboard shortcuts for common operations
+- [ ] Customizable interface layouts
+- [ ] Dark/light theme options
+- [ ] Multi-language support
+
+### Performance
+- [ ] Optimize status polling algorithms
+- [ ] Implement efficient G-code parsing
+- [ ] Add caching for frequently used data
+- [ ] Memory usage optimization
+
+## Architecture Decisions
+
+### Current Approach
+- **Framework-free**: Pure HTML/CSS/JavaScript for simplicity and performance
+- **Direct Web Serial**: No middleware or servers required for CNC communication
+- **Real-time updates**: Event-driven status monitoring
+- **Mobile-first**: Touch-friendly interface design
+
+### Future Considerations
+- **PWA features**: Offline capability, app-like experience
+- **WebRTC**: Potential for remote operation over networks
+- **WebAssembly**: For complex G-code processing if needed
+- **Service Workers**: For background task management
+
+## Safety and Reliability
+
+### Implemented Safety Features
+- ✅ Emergency stop with immediate response
+- ✅ Connection state validation before commands
+- ✅ Comprehensive error handling and user feedback
+- ✅ Safe coordinate system operations
+
+### Planned Safety Enhancements
+- [ ] Soft limits enforcement
+- [ ] Travel boundary visualization
+- [ ] Collision detection warnings
+- [ ] Safe height management for tool changes
+- [ ] Automatic recovery procedures
+
+## Testing and Validation
+
+### Current Testing
+- ✅ Manual testing on Genmitsu 3030 ProVer Max
+- ✅ Cross-browser compatibility (Chrome/Edge)
+- ✅ Touch device testing
+
+### Planned Testing
+- [ ] Automated testing framework
+- [ ] Other Grbl-compatible machines
+- [ ] Stress testing with continuous operation
+- [ ] Performance benchmarking
+- [ ] Security testing for Web Serial API usage
+
+## Documentation
+
+### Current Documentation
+- ✅ README with setup instructions
+- ✅ Feature documentation
+- ✅ Browser compatibility notes
+
+### Planned Documentation
+- [ ] Video tutorials for common operations
+- [ ] Troubleshooting guide
+- [ ] API documentation for extensibility
+- [ ] Safety procedures and best practices
 
 

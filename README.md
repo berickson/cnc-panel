@@ -8,11 +8,14 @@ A progressive web application for controlling the Genmitsu 3030 ProVer max CNC m
 - Direct serial communication via Web Serial API
 - Real-time status monitoring with activity-based updates
 - Emergency stop functionality
-- Manual jog controls (X/Y/Z axes) with configurable step sizes
+- **Advanced manual jog controls** with tap/hold functionality:
+  - **Tap**: Precise stepped movement using configurable step sizes (0.1mm, 1mm, 10mm)
+  - **Hold**: Continuous jogging until button release
 - Homing operations (all axes or individual axes)
 - Work coordinate system (G54) zero setting with individual and combined axis controls
 - Enhanced position display showing both machine (MPos) and work (WPos) coordinates
 - Safe navigation to work and machine coordinates (preserving Z height)
+- Auto-connection to previously paired USB devices
 - Connection management with comprehensive error handling
 - Communication log with copy functionality
 - Connection status indicator
@@ -81,16 +84,22 @@ If you want to control the CNC from a different computer, you have two options:
 
 ### Current Features
 
-- **Connection Management**: Connect/disconnect to CNC via USB with detailed error handling
-- **Status Monitoring**: Real-time machine state and position display that updates automatically during jogging
+- **Connection Management**: 
+  - Auto-connect to previously paired USB devices
+  - Connect/disconnect to CNC via USB with detailed error handling
+- **Status Monitoring**: Real-time machine state and position display with high-frequency updates during jogging (20Hz)
 - **Emergency Stop**: Immediate halt command (!) for safety
-- **Manual Controls**: Jog X/Y/Z axes with configurable step sizes (0.1mm, 1mm, 10mm)
+- **Advanced Manual Controls**: 
+  - **Tap jogging**: Quick press for precise stepped movement
+  - **Hold jogging**: Continuous movement while button is held down
+  - Configurable step sizes (0.1mm, 1mm, 10mm)
+  - Touch-friendly interface for mobile/tablet use
 - **Homing**: Home all axes or individual axes ($H commands)
-- **Work Coordinate System**: Set work zero points (G54) for X, Y, Z individually or combined (X0Y0)
-- **Position Display**: Shows both machine coordinates (MPos) and work coordinates (WPos) in real-time
+- **Work Coordinate System**: Set work zero points (G54) for X, Y, Z individually or combined (X0Y0) - no confirmation required
+- **Position Display**: Shows both machine coordinates (MPos) and work coordinates (WPos) in real-time with automatic WCO calculation
 - **Safe Navigation**: Move to work zero or machine zero while preserving Z height
 - **Communication Log**: View all commands sent and responses received with copy functionality
-- **Activity Detection**: Automatic status updates when external jogging is detected (built-in controller)
+- **Activity Detection**: Automatic status updates when external jogging is detected (built-in controller) with 2-second settling time
 - **Error Handling**: Clear error messages for troubleshooting and connection issues
 
 ### Browser Compatibility
