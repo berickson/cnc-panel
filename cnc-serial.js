@@ -119,6 +119,15 @@ class CNCSerial {
     this.status_button.addEventListener('click', () => this.request_status());
     this.copy_log_button.addEventListener('click', () => this.copy_log());
     
+    // Add settings check button functionality
+    document.addEventListener('keydown', (e) => {
+      // Press 'S' to send $$ command for settings
+      if (e.key.toLowerCase() === 's' && this.is_connected) {
+        this.send_command('$$');
+        this.log('Sent $$ to check Grbl settings (look for $22 for homing enable)');
+      }
+    });
+    
     // Step size controls
     this.step_01_button.addEventListener('click', () => this.set_step_size(0.1));
     this.step_1_button.addEventListener('click', () => this.set_step_size(1));
@@ -444,35 +453,17 @@ class CNCSerial {
   parse_response(response) {
     const trimmed = response.trim();
     
-    // Handle "ok" responses - check if this is from our own command or external activity
-    if (trimmed === 'ok') {
-      if (this.pending_commands.size > 0) {
-        // This "ok" is likely from our own command - remove oldest pending command
-        const oldest_command = this.pending_commands.values().next().value;
-        this.pending_commands.delete(oldest_command);
-        
-        // Request status update after our own commands complete (except status requests)
-        if (oldest_command && oldest_command !== '?') {
-          setTimeout(() => {
-            if (this.is_connected) {
-              this.request_status();
-            }
-          }, 100);
-        }
-      } else {
-        // This "ok" is from external activity (built-in controller jogging)
-        this.last_activity_time = Date.now();
-        
-        // Schedule a final status request 2 seconds after activity stops
-        if (this.final_status_timeout) {
-          clearTimeout(this.final_status_timeout);
-        }
-        this.final_status_timeout = setTimeout(() => {
-          if (this.is_connected) {
-            this.request_status();
-          }
-        }, 2000);
+    // Enhanced error handling with specific messages
+    if (trimmed.startsWith('error:')) {
+      let error_msg = `CNC Error: ${trimmed}`;
+      
+      if (trimmed === 'error:8') {
+        error_msg += ' - G-code locked out. Machine may be in alarm state or limit switches active. Try moving away from limit switches first.';
+      } else if (trimmed === 'error:9') {
+        error_msg += ' - Homing not enabled. Send $22=1 to enable homing.';
       }
+      
+      this.show_error(error_msg);
     }
     
     // Also track activity for jog state changes (when machine enters/exits Jog state)
@@ -653,6 +644,7 @@ class CNCSerial {
     }
     
     this.log('Starting home all axes...');
+    this.log('Note: Homing requires limit switches to be connected and enabled in Grbl settings ($22=1)');
     await this.send_command('$H');
   }
   
@@ -663,6 +655,7 @@ class CNCSerial {
     }
     
     this.log(`Starting home ${axis} axis...`);
+    this.log('Note: Homing requires limit switches to be connected and enabled in Grbl settings ($22=1)');
     await this.send_command(`$H${axis}`);
   }
   
