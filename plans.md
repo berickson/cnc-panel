@@ -44,56 +44,70 @@ The CNC panel now provides professional-grade manual control functionality with:
 
 ## Next Development Priorities
 
-### Phase 5: Feed Rate and Overrides
+### Phase 5: UI Optimization for Small Displays
+- [ ] **7-inch display optimization**: Redesign interface to fit 7" touch monitors (1024x600 typical resolution)
+  - Larger touch targets for workshop use
+  - Optimized spacing and font sizes
+  - Vertical layout considerations
+  - Responsive design for different orientations
+- [ ] **Mobile/tablet layout improvements**: Better touch interface scaling
+- [ ] **Compact mode toggle**: Switch between full and compact layouts
+
+### Phase 6: Kiosk Mode Implementation
+- [ ] **Fullscreen kiosk mode**: Dedicated panel interface without browser chrome
+  - Auto-enter fullscreen on load option
+  - Hide browser navigation and address bar
+  - Prevent accidental navigation away from panel
+- [ ] **Simplified operator interface**: Large buttons, essential controls only
+- [ ] **Workshop-friendly design**: High contrast, readable in various lighting
+- [ ] **Screen timeout prevention**: Keep display always on during operation
+- [ ] **Auto-reconnect**: Attempt to reconnect to CNC automatically on startup
+
+### Phase 7: Feed Rate and Overrides
 - [ ] Real-time feed rate override controls (10-200%)
 - [ ] Spindle speed override controls  
 - [ ] Rapid rate override controls
 - [ ] Display current override percentages
 
-### Phase 6: Spindle Control
+### Phase 8: Spindle Control
 - [ ] Spindle start/stop control
 - [ ] Spindle speed setting (RPM)
 - [ ] Spindle direction control (CW/CCW)
 - [ ] Coolant control (if applicable)
 
-### Phase 7: G-code File Handling
+### Phase 9: G-code File Handling
 - [ ] G-code file upload and parsing
 - [ ] G-code preview and validation
 - [ ] Job execution with start/stop/pause controls
 - [ ] Progress tracking and time estimation
 - [ ] Job queue management
 
-### Phase 8: Probing and Tool Management
-- [ ] Probe connectivity detection
-- [ ] Tool length measurement workflows
-- [ ] Workpiece probing (corner finding, surface detection)
-- [ ] Tool change procedures
-- [ ] Tool library management
-
-### Phase 9: Advanced Features
-- [ ] Macro system for common operations
-- [ ] Job templates and presets
-- [ ] Machine configuration backup/restore
-- [ ] Performance logging and analytics
-
-### Phase 10: Panel Mode
-- [ ] Kiosk/fullscreen mode for dedicated panel use
-- [ ] Large button interfaces for workshop environment
-- [ ] Simplified operator interface
-- [ ] Multi-user access controls
+### Phase 10: Panel Mode (Enhanced)
+- [ ] **Hardware integration**: Support for dedicated panel hardware
+  - Physical emergency stop integration detection
+  - External jog wheel/MPG support
+  - Hardware button mapping
+- [ ] **Multi-user access controls**: Operator vs setup modes
+- [ ] **Machine-specific configurations**: Save/load settings per machine
 
 ## Technical Debt and Improvements
 
 ### Code Quality
+- [ ] **Refactor G-code command generation**: Replace hardcoded command strings with readable helper functions
+  - Current: `$J=G91${axis}${distance}F1000` (hard to read/maintain)
+  - Proposed: `GRBL.jog(axis, distance)` or similar structured approach
+  - Commands to refactor: jog, setWorkZero, home, move, etc.
 - [ ] Add comprehensive error handling for all Grbl error codes
 - [ ] Implement unit tests for core functionality
 - [ ] Add TypeScript for better type safety
 - [ ] Code documentation and inline comments
 
 ### User Experience
+- [ ] **7-inch display support**: Optimize for small workshop monitors
+- [ ] **Kiosk mode**: Fullscreen dedicated operation mode
 - [ ] Keyboard shortcuts for common operations
 - [ ] Customizable interface layouts
-- [ ] Dark/light theme options
+- [ ] Dark/light theme options (workshop lighting considerations)
 - [ ] Multi-language support
 
 ### Performance
@@ -111,10 +125,10 @@ The CNC panel now provides professional-grade manual control functionality with:
 - **Mobile-first**: Touch-friendly interface design
 
 ### Future Considerations
-- **PWA features**: Offline capability, app-like experience
+- **PWA features**: Offline capability, app-like experience, kiosk mode support
 - **WebRTC**: Potential for remote operation over networks
 - **WebAssembly**: For complex G-code processing if needed
-- **Service Workers**: For background task management
+- **Service Workers**: For background task management and auto-reconnect
 
 ## Safety and Reliability
 
@@ -159,5 +173,26 @@ The CNC panel now provides professional-grade manual control functionality with:
 - [ ] Troubleshooting guide
 - [ ] API documentation for extensibility
 - [ ] Safety procedures and best practices
+
+## Workshop Integration Requirements
+
+### 7-Inch Display Considerations
+- **Resolution**: Typically 1024x600 or 800x480
+- **Touch targets**: Minimum 44px for reliable touch interaction
+- **Viewing distance**: Arms length operation in workshop environment
+- **Durability**: Interface should handle workshop conditions
+
+### Kiosk Mode Requirements
+- **Boot-to-browser**: Integration with embedded systems/Raspberry Pi
+- **Crash recovery**: Automatic restart if browser crashes
+- **Network resilience**: Handle network disconnections gracefully
+- **Power management**: Sleep/wake behavior for workshop schedules
+- **Security**: Lock down browser to prevent tampering
+
+### Workshop Environment
+- **Lighting**: High contrast for various workshop lighting conditions
+- **Noise**: Visual feedback important in noisy environments
+- **Dust/debris**: Touch interface should handle partial occlusion
+- **Temperature**: Stable operation in workshop temperature ranges
 
 
