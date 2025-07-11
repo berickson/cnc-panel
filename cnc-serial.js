@@ -204,13 +204,13 @@ class CNCSerial {
       
       await this.request_status(); // Get initial status
       
-      // Check for activity every 500ms and request status if there was recent activity
+      // Check for activity more frequently (every 50ms = 20 times per second) and request status if there was recent activity
       this.activity_check_interval = setInterval(() => {
         const now = Date.now();
-        if (this.is_connected && (now - this.last_activity_time) < 1000 && (now - this.last_activity_time) > 100) {
+        if (this.is_connected && (now - this.last_activity_time) < 2000 && (now - this.last_activity_time) > 50) {
           this.request_status();
         }
-      }, 500);
+      }, 50);
       
       this.log('Connected - monitoring for activity');
       
@@ -361,7 +361,7 @@ class CNCSerial {
         // This "ok" is from external activity (built-in controller jogging)
         this.last_activity_time = Date.now();
         
-        // Schedule a final status request 500ms after activity stops
+        // Schedule a final status request 2 seconds after activity stops
         if (this.final_status_timeout) {
           clearTimeout(this.final_status_timeout);
         }
@@ -369,7 +369,7 @@ class CNCSerial {
           if (this.is_connected) {
             this.request_status();
           }
-        }, 500);
+        }, 2000);
       }
     }
     
