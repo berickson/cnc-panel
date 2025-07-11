@@ -10,6 +10,9 @@ class CNCSerial {
     this.pending_commands = new Set(); // Track commands we sent
     this.final_status_timeout = null; // For delayed final status request
     this.last_work_offset = [0, 0, 0]; // Store last known work coordinate offset
+    this.jog_interval = null; // For continuous jogging
+    this.jog_hold_timeout = null; // To detect hold vs tap
+    this.is_jogging_continuous = false; // Track continuous jog state
     
     // UI elements
     this.connect_button = document.getElementById('connect_button');
@@ -125,13 +128,13 @@ class CNCSerial {
     this.step_1_button.addEventListener('click', () => this.set_step_size(1));
     this.step_10_button.addEventListener('click', () => this.set_step_size(10));
     
-    // Jog controls
-    this.jog_x_plus_button.addEventListener('click', () => this.jog('X', '+'));
-    this.jog_x_minus_button.addEventListener('click', () => this.jog('X', '-'));
-    this.jog_y_plus_button.addEventListener('click', () => this.jog('Y', '+'));
-    this.jog_y_minus_button.addEventListener('click', () => this.jog('Y', '-'));
-    this.jog_z_plus_button.addEventListener('click', () => this.jog('Z', '+'));
-    this.jog_z_minus_button.addEventListener('click', () => this.jog('Z', '-'));
+    // Jog controls with hold detection
+    this.setup_jog_button(this.jog_x_plus_button, 'X', '+');
+    this.setup_jog_button(this.jog_x_minus_button, 'X', '-');
+    this.setup_jog_button(this.jog_y_plus_button, 'Y', '+');
+    this.setup_jog_button(this.jog_y_minus_button, 'Y', '-');
+    this.setup_jog_button(this.jog_z_plus_button, 'Z', '+');
+    this.setup_jog_button(this.jog_z_minus_button, 'Z', '-');
     
     // Home controls
     this.home_all_button.addEventListener('click', () => this.home_all());
@@ -147,6 +150,109 @@ class CNCSerial {
     this.zero_xy_button.addEventListener('click', () => this.zero_xy());
     this.go_work_zero_button.addEventListener('click', () => this.go_work_zero());
     this.go_machine_zero_button.addEventListener('click', () => this.go_machine_zero());
+  }
+  
+  setup_jog_button(button, axis, direction) {
+    let press_start_time = 0;
+    let is_pressed = false;
+    
+    const start_press = () => {
+      if (is_pressed) return;
+      is_pressed = true;
+      press_start_time = Date.now();
+      
+      // Start hold detection timer (200ms)
+      this.jog_hold_timeout = setTimeout(() => {
+        if (is_pressed) {
+          this.start_continuous_jog(axis, direction);
+        }
+      }, 200);
+    };
+    
+    const end_press = () => {
+      if (!is_pressed) return;
+      is_pressed = false;
+      
+      const press_duration = Date.now() - press_start_time;
+      
+      // Clear hold timeout
+      if (this.jog_hold_timeout) {
+        clearTimeout(this.jog_hold_timeout);
+        this.jog_hold_timeout = null;
+      }
+      
+      // Stop continuous jogging if active
+      if (this.is_jogging_continuous) {
+        this.stop_continuous_jog();
+      } else if (press_duration < 200) {
+        // Short press - single step jog
+        this.jog_single_step(axis, direction);
+      }
+    };
+    
+    // Mouse events
+    button.addEventListener('mousedown', start_press);
+    button.addEventListener('mouseup', end_press);
+    button.addEventListener('mouseleave', end_press);
+    
+    // Touch events
+    button.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      start_press();
+    });
+    button.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      end_press();
+    });
+    button.addEventListener('touchcancel', (e) => {
+      e.preventDefault();
+      end_press();
+    });
+  }
+  
+  async jog_single_step(axis, direction) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    const step_size = this.get_step_size();
+    const distance = direction === '+' ? step_size : -step_size;
+    const command = `$J=G91${axis}${distance}F1000`;
+    
+    await this.send_command(command);
+  }
+  
+  start_continuous_jog(axis, direction) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.is_jogging_continuous = true;
+    this.log(`Starting continuous jog ${axis}${direction}`);
+    
+    // Send continuous jog command - use proper $J= format with large distance
+    const feed_rate = 1000; // mm/min
+    const distance = direction === '+' ? '1000' : '-1000';
+    const command = `$J=G91${axis}${distance}F${feed_rate}`;
+    this.send_command(command);
+  }
+  
+  async stop_continuous_jog() {
+    if (!this.is_connected || !this.is_jogging_continuous) {
+      return;
+    }
+    
+    this.is_jogging_continuous = false;
+    this.log('Stopping continuous jog');
+    
+    // Send jog cancel command (real-time command) - try the proper jog cancel
+    if (this.writer) {
+      // Use 0x85 (133) which is the proper jog cancel command for Grbl
+      await this.writer.write(new Uint8Array([0x85]));
+      this.log('→ (Jog Cancel 0x85)');
+    }
   }
   
   async connect() {
@@ -561,6 +667,10 @@ class CNCSerial {
   }
   
   async jog(axis, direction) {
+    return this.jog_single_step(axis, direction);
+  }
+  
+  async jog_single_step(axis, direction) {
     if (!this.is_connected) {
       this.show_error('Not connected to CNC');
       return;
@@ -571,6 +681,38 @@ class CNCSerial {
     const command = `$J=G91${axis}${distance}F1000`;
     
     await this.send_command(command);
+  }
+  
+  start_continuous_jog(axis, direction) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.is_jogging_continuous = true;
+    this.log(`Starting continuous jog ${axis}${direction}`);
+    
+    // Send continuous jog command - use proper $J= format with large distance
+    const feed_rate = 1000; // mm/min
+    const distance = direction === '+' ? '1000' : '-1000';
+    const command = `$J=G91${axis}${distance}F${feed_rate}`;
+    this.send_command(command);
+  }
+  
+  async stop_continuous_jog() {
+    if (!this.is_connected || !this.is_jogging_continuous) {
+      return;
+    }
+    
+    this.is_jogging_continuous = false;
+    this.log('Stopping continuous jog');
+    
+    // Send jog cancel command (real-time command) - try the proper jog cancel
+    if (this.writer) {
+      // Use 0x85 (133) which is the proper jog cancel command for Grbl
+      await this.writer.write(new Uint8Array([0x85]));
+      this.log('→ (Jog Cancel 0x85)');
+    }
   }
   
   async home_all() {
