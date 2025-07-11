@@ -4,26 +4,32 @@ Operations will include things like homing, probing, launching jobs, showing sta
 It can be run from a web page directly, or in "panel mode"
 The initial target will ONLY be for my Genmitsu 3030 ProVer max CNC
 
-## Communication Implementation Plan
+## Completed Features ✅
+- ✅ Web Serial API connection management with feature detection
+- ✅ Browser compatibility checking (Chrome/Edge requirement)
+- ✅ Serial connection with proper error handling and user feedback
+- ✅ Real-time status display (machine state, X/Y/Z positions)
+- ✅ Activity-based status monitoring (updates when jogging manually)
+- ✅ Communication log with copy functionality
+- ✅ Connection status indicator
+- ✅ Grbl firmware integration (115200 baud, status parsing)
+- ✅ Response buffering for multi-chunk messages
+- ✅ Command tracking to distinguish external vs internal activity
+- ✅ Emergency stop functionality (immediate halt command)
+- ✅ Manual jog controls for X/Y/Z axes with configurable step sizes
+- ✅ Homing operations (all axes and individual axes)
 
-### Web Serial API Approach
-1. **Feature detection** - Check if Web Serial API is available in browser
-2. **Fallback message** - Suggest compatible browser (Chrome/Edge) if not supported
-3. **Serial connection management** - Connect/disconnect handling with proper error handling
-4. **G-code sending/receiving** - Command queue and response parsing for Grbl firmware
-5. **Status monitoring** - Real-time position and status updates from CNC
+## Next Implementation Steps
+1. **Zero setting** - Set work coordinate system (G54) zero points
+2. **Feed rate controls** - Adjust feed rate and spindle speed overrides
+3. **File operations** - Load and send G-code files to CNC
+4. **Probing workflows** - Tool length and workpiece probing routines
+5. **Spindle control** - Start/stop spindle with speed control
 
-### Technical Details
-- Target Grbl firmware (common on Genmitsu 3030 ProVer max)
-- Default baud rate: 115200
-- USB-to-serial communication via browser Web Serial API
-- No backend server required - pure client-side solution
-
-## Initial Implementation (Proof of Concept)
-- Create basic HTML page with connect/disconnect buttons
-- Implement Web Serial API connection to CNC
-- Send status request commands (? for Grbl status)
-- Display real-time status information to prove connection is working
-- Show connection state and basic machine position/status
+## Technical Architecture
+- Framework-free HTML/CSS/JavaScript
+- Web Serial API for direct USB communication
+- Client-side only (no backend server required)
+- Progressive Web App capabilities for offline use
 
 

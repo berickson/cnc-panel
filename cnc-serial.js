@@ -20,6 +20,27 @@ class CNCSerial {
     this.error_container = document.getElementById('error_container');
     this.copy_log_button = document.getElementById('copy_log_button');
     
+    // Manual control elements
+    this.emergency_stop_button = document.getElementById('emergency_stop_button');
+    this.step_size_input = document.getElementById('step_size_input');
+    this.step_01_button = document.getElementById('step_01_button');
+    this.step_1_button = document.getElementById('step_1_button');
+    this.step_10_button = document.getElementById('step_10_button');
+    
+    // Jog buttons
+    this.jog_x_plus_button = document.getElementById('jog_x_plus_button');
+    this.jog_x_minus_button = document.getElementById('jog_x_minus_button');
+    this.jog_y_plus_button = document.getElementById('jog_y_plus_button');
+    this.jog_y_minus_button = document.getElementById('jog_y_minus_button');
+    this.jog_z_plus_button = document.getElementById('jog_z_plus_button');
+    this.jog_z_minus_button = document.getElementById('jog_z_minus_button');
+    
+    // Home buttons
+    this.home_all_button = document.getElementById('home_all_button');
+    this.home_x_button = document.getElementById('home_x_button');
+    this.home_y_button = document.getElementById('home_y_button');
+    this.home_z_button = document.getElementById('home_z_button');
+    
     // Status elements
     this.machine_state = document.getElementById('machine_state');
     this.x_position = document.getElementById('x_position');
@@ -77,6 +98,28 @@ class CNCSerial {
     this.disconnect_button.addEventListener('click', () => this.disconnect());
     this.status_button.addEventListener('click', () => this.request_status());
     this.copy_log_button.addEventListener('click', () => this.copy_log());
+    
+    // Emergency stop
+    this.emergency_stop_button.addEventListener('click', () => this.emergency_stop());
+    
+    // Step size controls
+    this.step_01_button.addEventListener('click', () => this.set_step_size(0.1));
+    this.step_1_button.addEventListener('click', () => this.set_step_size(1));
+    this.step_10_button.addEventListener('click', () => this.set_step_size(10));
+    
+    // Jog controls
+    this.jog_x_plus_button.addEventListener('click', () => this.jog('X', '+'));
+    this.jog_x_minus_button.addEventListener('click', () => this.jog('X', '-'));
+    this.jog_y_plus_button.addEventListener('click', () => this.jog('Y', '+'));
+    this.jog_y_minus_button.addEventListener('click', () => this.jog('Y', '-'));
+    this.jog_z_plus_button.addEventListener('click', () => this.jog('Z', '+'));
+    this.jog_z_minus_button.addEventListener('click', () => this.jog('Z', '-'));
+    
+    // Home controls
+    this.home_all_button.addEventListener('click', () => this.home_all());
+    this.home_x_button.addEventListener('click', () => this.home_axis('X'));
+    this.home_y_button.addEventListener('click', () => this.home_axis('Y'));
+    this.home_z_button.addEventListener('click', () => this.home_axis('Z'));
   }
   
   async connect() {
@@ -329,6 +372,10 @@ class CNCSerial {
       this.connect_button.disabled = true;
       this.disconnect_button.disabled = false;
       this.status_button.disabled = false;
+      
+      // Enable manual controls when connected
+      this.emergency_stop_button.disabled = false;
+      this.enable_jog_controls(true);
     } else {
       this.status_indicator.classList.remove('connected');
       this.status_text.textContent = 'Disconnected';
@@ -336,12 +383,84 @@ class CNCSerial {
       this.disconnect_button.disabled = true;
       this.status_button.disabled = true;
       
+      // Disable manual controls when disconnected
+      this.emergency_stop_button.disabled = true;
+      this.enable_jog_controls(false);
+      
       // Reset status display
       this.machine_state.textContent = 'Unknown';
       this.x_position.textContent = '0.000';
       this.y_position.textContent = '0.000';
       this.z_position.textContent = '0.000';
     }
+  }
+  
+  enable_jog_controls(enabled) {
+    this.jog_x_plus_button.disabled = !enabled;
+    this.jog_x_minus_button.disabled = !enabled;
+    this.jog_y_plus_button.disabled = !enabled;
+    this.jog_y_minus_button.disabled = !enabled;
+    this.jog_z_plus_button.disabled = !enabled;
+    this.jog_z_minus_button.disabled = !enabled;
+    this.home_all_button.disabled = !enabled;
+    this.home_x_button.disabled = !enabled;
+    this.home_y_button.disabled = !enabled;
+    this.home_z_button.disabled = !enabled;
+  }
+  
+  emergency_stop() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('EMERGENCY STOP triggered');
+    // Send immediate halt command (real-time command, doesn't need \n)
+    if (this.writer) {
+      this.writer.write(new TextEncoder().encode('!'));
+      this.log('→ ! (Emergency Stop)');
+    }
+  }
+  
+  set_step_size(size) {
+    this.step_size_input.value = size;
+  }
+  
+  get_step_size() {
+    return parseFloat(this.step_size_input.value) || 1;
+  }
+  
+  async jog(axis, direction) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    const step_size = this.get_step_size();
+    const distance = direction === '+' ? step_size : -step_size;
+    const command = `$J=G91${axis}${distance}F1000`;
+    
+    await this.send_command(command);
+  }
+  
+  async home_all() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Starting home all axes...');
+    await this.send_command('$H');
+  }
+  
+  async home_axis(axis) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log(`Starting home ${axis} axis...`);
+    await this.send_command(`$H${axis}`);
   }
   
   log(message) {
