@@ -9,6 +9,7 @@ class CNCSerial {
     this.activity_check_interval = null;
     this.pending_commands = new Set(); // Track commands we sent
     this.final_status_timeout = null; // For delayed final status request
+    this.last_work_offset = [0, 0, 0]; // Store last known work coordinate offset
     
     // UI elements
     this.connect_button = document.getElementById('connect_button');
@@ -40,6 +41,23 @@ class CNCSerial {
     this.home_x_button = document.getElementById('home_x_button');
     this.home_y_button = document.getElementById('home_y_button');
     this.home_z_button = document.getElementById('home_z_button');
+    
+    // Zero control elements
+    this.zero_all_button = document.getElementById('zero_all_button');
+    this.zero_x_button = document.getElementById('zero_x_button');
+    this.zero_y_button = document.getElementById('zero_y_button');
+    this.zero_z_button = document.getElementById('zero_z_button');
+    this.zero_xy_button = document.getElementById('zero_xy_button');
+    this.go_work_zero_button = document.getElementById('go_work_zero_button');
+    this.go_machine_zero_button = document.getElementById('go_machine_zero_button');
+    
+    // Enhanced position elements
+    this.machine_x_position = document.getElementById('machine_x_position');
+    this.machine_y_position = document.getElementById('machine_y_position');
+    this.machine_z_position = document.getElementById('machine_z_position');
+    this.work_x_position = document.getElementById('work_x_position');
+    this.work_y_position = document.getElementById('work_y_position');
+    this.work_z_position = document.getElementById('work_z_position');
     
     // Status elements
     this.machine_state = document.getElementById('machine_state');
@@ -120,6 +138,15 @@ class CNCSerial {
     this.home_x_button.addEventListener('click', () => this.home_axis('X'));
     this.home_y_button.addEventListener('click', () => this.home_axis('Y'));
     this.home_z_button.addEventListener('click', () => this.home_axis('Z'));
+    
+    // Zero controls
+    this.zero_all_button.addEventListener('click', () => this.zero_all());
+    this.zero_x_button.addEventListener('click', () => this.zero_axis('X'));
+    this.zero_y_button.addEventListener('click', () => this.zero_axis('Y'));
+    this.zero_z_button.addEventListener('click', () => this.zero_axis('Z'));
+    this.zero_xy_button.addEventListener('click', () => this.zero_xy());
+    this.go_work_zero_button.addEventListener('click', () => this.go_work_zero());
+    this.go_machine_zero_button.addEventListener('click', () => this.go_machine_zero());
   }
   
   async connect() {
@@ -158,8 +185,14 @@ class CNCSerial {
       await this.send_command('$X'); // Unlock Grbl
       await this.delay(100);
       
-      // Enable real-time status reports (send status on machine state changes)
-      await this.send_command('$10=1'); // Status report mask - enable WPos reporting
+      // Try multiple approaches to get WPos reporting
+      await this.send_command('$10=1'); // First try WPos only
+      await this.delay(100);
+      await this.send_command('G54'); // Ensure we're in G54 coordinate system
+      await this.delay(100);
+      
+      // Request work coordinate offset to get current WCO values
+      await this.send_command('$#'); // Get coordinate system parameters
       await this.delay(100);
       
       await this.request_status(); // Get initial status
@@ -308,8 +341,17 @@ class CNCSerial {
         // This "ok" is likely from our own command - remove oldest pending command
         const oldest_command = this.pending_commands.values().next().value;
         this.pending_commands.delete(oldest_command);
+        
+        // Request status update after our own commands complete (except status requests)
+        if (oldest_command && oldest_command !== '?') {
+          setTimeout(() => {
+            if (this.is_connected) {
+              this.request_status();
+            }
+          }, 100);
+        }
       } else {
-        // This "ok" is from external activity (manual jogging)
+        // This "ok" is from external activity (built-in controller jogging)
         this.last_activity_time = Date.now();
         
         // Schedule a final status request 500ms after activity stops
@@ -324,12 +366,39 @@ class CNCSerial {
       }
     }
     
-    // Track activity for other non-status responses
+    // Also track activity for jog state changes (when machine enters/exits Jog state)
+    if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+      const status_data = trimmed.slice(1, -1);
+      const parts = status_data.split('|');
+      const state = parts[0];
+      
+      // If we see the machine enter Jog state and we didn't send a jog command recently,
+      // this is external jogging activity
+      if (state === 'Jog' && this.pending_commands.size === 0) {
+        this.last_activity_time = Date.now();
+      }
+    }
+    
+    // Track activity for other non-status responses (errors, etc.)
     if (!trimmed.startsWith('<') && 
         !trimmed.endsWith('>') && 
         trimmed !== 'ok' && 
         !trimmed.startsWith('Grbl')) {
       this.last_activity_time = Date.now();
+    }
+    
+    // Parse coordinate system parameters response from $# command
+    if (trimmed.startsWith('[G54:') || trimmed.startsWith('[G55:') || trimmed.startsWith('[G56:') || 
+        trimmed.startsWith('[G57:') || trimmed.startsWith('[G58:') || trimmed.startsWith('[G59:')) {
+      const match = trimmed.match(/\[G54:(.*?)\]/);
+      if (match) {
+        const coords = match[1].split(',');
+        if (coords.length >= 3) {
+          // Store the G54 work coordinate offset
+          this.last_work_offset = coords.map(coord => parseFloat(coord));
+          this.log(`Current G54 offset: ${this.last_work_offset}`);
+        }
+      }
     }
     
     // Parse Grbl status report format: <State|WPos:0.000,0.000,0.000|...>
@@ -341,16 +410,50 @@ class CNCSerial {
         // Machine state (Idle, Run, Hold, etc.)
         this.machine_state.textContent = parts[0];
         
-        // Parse work position or machine position
+        let machine_coords = null;
+        let work_coords = null;
+        let work_offset = null;
+        
+        // Parse machine position, work position, and work coordinate offset
         for (const part of parts) {
-          if (part.startsWith('WPos:') || part.startsWith('MPos:')) {
-            const coords = part.substring(5).split(',');
-            if (coords.length >= 3) {
-              this.x_position.textContent = parseFloat(coords[0]).toFixed(3);
-              this.y_position.textContent = parseFloat(coords[1]).toFixed(3);
-              this.z_position.textContent = parseFloat(coords[2]).toFixed(3);
-            }
+          if (part.startsWith('MPos:')) {
+            machine_coords = part.substring(5).split(',');
+          } else if (part.startsWith('WPos:')) {
+            work_coords = part.substring(5).split(',');
+          } else if (part.startsWith('WCO:')) {
+            work_offset = part.substring(4).split(',');
+            // Store the new work offset for future use
+            this.last_work_offset = work_offset.map(coord => parseFloat(coord));
           }
+        }
+        
+        // Update machine position display
+        if (machine_coords && machine_coords.length >= 3) {
+          this.machine_x_position.textContent = parseFloat(machine_coords[0]).toFixed(3);
+          this.machine_y_position.textContent = parseFloat(machine_coords[1]).toFixed(3);
+          this.machine_z_position.textContent = parseFloat(machine_coords[2]).toFixed(3);
+          
+          // Also update the main position display (legacy)
+          this.x_position.textContent = parseFloat(machine_coords[0]).toFixed(3);
+          this.y_position.textContent = parseFloat(machine_coords[1]).toFixed(3);
+          this.z_position.textContent = parseFloat(machine_coords[2]).toFixed(3);
+        }
+        
+        // Update work position display
+        if (work_coords && work_coords.length >= 3) {
+          // Direct WPos data available
+          this.work_x_position.textContent = parseFloat(work_coords[0]).toFixed(3);
+          this.work_y_position.textContent = parseFloat(work_coords[1]).toFixed(3);
+          this.work_z_position.textContent = parseFloat(work_coords[2]).toFixed(3);
+        } else if (machine_coords && machine_coords.length >= 3) {
+          // Calculate WPos from MPos using stored WCO: WPos = MPos - WCO
+          const work_x = parseFloat(machine_coords[0]) - this.last_work_offset[0];
+          const work_y = parseFloat(machine_coords[1]) - this.last_work_offset[1];
+          const work_z = parseFloat(machine_coords[2]) - this.last_work_offset[2];
+          
+          this.work_x_position.textContent = work_x.toFixed(3);
+          this.work_y_position.textContent = work_y.toFixed(3);
+          this.work_z_position.textContent = work_z.toFixed(3);
         }
       }
     }
@@ -392,6 +495,17 @@ class CNCSerial {
       this.x_position.textContent = '0.000';
       this.y_position.textContent = '0.000';
       this.z_position.textContent = '0.000';
+      
+      // Reset stored work offset
+      this.last_work_offset = [0, 0, 0];
+      
+      // Reset enhanced position displays
+      this.machine_x_position.textContent = '0.000';
+      this.machine_y_position.textContent = '0.000';
+      this.machine_z_position.textContent = '0.000';
+      this.work_x_position.textContent = '0.000';
+      this.work_y_position.textContent = '0.000';
+      this.work_z_position.textContent = '0.000';
     }
   }
   
@@ -406,6 +520,15 @@ class CNCSerial {
     this.home_x_button.disabled = !enabled;
     this.home_y_button.disabled = !enabled;
     this.home_z_button.disabled = !enabled;
+    
+    // Enable/disable zero controls
+    this.zero_all_button.disabled = !enabled;
+    this.zero_x_button.disabled = !enabled;
+    this.zero_y_button.disabled = !enabled;
+    this.zero_z_button.disabled = !enabled;
+    this.zero_xy_button.disabled = !enabled;
+    this.go_work_zero_button.disabled = !enabled;
+    this.go_machine_zero_button.disabled = !enabled;
   }
   
   emergency_stop() {
@@ -461,6 +584,66 @@ class CNCSerial {
     
     this.log(`Starting home ${axis} axis...`);
     await this.send_command(`$H${axis}`);
+  }
+  
+  async zero_all() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    if (confirm('Set X, Y, and Z zero at current position?')) {
+      this.log('Setting all axes to zero...');
+      await this.send_command('G10 L20 P1 X0 Y0 Z0');
+    }
+  }
+  
+  async zero_axis(axis) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    const confirm_msg = axis === 'Z' ? 
+      `Set ${axis} zero at current position? WARNING: Ensure tool is at correct Z height!` :
+      `Set ${axis} zero at current position?`;
+    
+    if (confirm(confirm_msg)) {
+      this.log(`Setting ${axis} axis to zero...`);
+      await this.send_command(`G10 L20 P1 ${axis}0`);
+    }
+  }
+  
+  async zero_xy() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    if (confirm('Set X and Y zero at current position?')) {
+      this.log('Setting X and Y axes to zero...');
+      await this.send_command('G10 L20 P1 X0 Y0');
+    }
+  }
+  
+  async go_work_zero() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Moving to work coordinate X0 Y0 (preserving Z)...');
+    await this.send_command('G0 X0 Y0');
+  }
+  
+  async go_machine_zero() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Moving to machine coordinate X0 Y0 (preserving Z)...');
+    await this.send_command('G53 G0 X0 Y0');
   }
   
   log(message) {

@@ -161,6 +161,50 @@
       border: 1px solid #ccc;
       border-radius: 4px;
     }
+    
+    .coordinate_display {
+      display: grid;
+      grid-template-columns: auto 1fr 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+      margin: 10px 0;
+      font-family: monospace;
+    }
+    
+    .coordinate_label {
+      font-weight: bold;
+      min-width: 50px;
+    }
+    
+    .coordinate_value {
+      background-color: #f8f9fa;
+      padding: 8px;
+      border-radius: 4px;
+      text-align: center;
+      border: 2px solid transparent;
+    }
+    
+    .machine_coords {
+      border-color: #007bff;
+    }
+    
+    .work_coords {
+      border-color: #28a745;
+    }
+    
+    .zero_controls {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+      flex-wrap: wrap;
+    }
+    
+    .navigation_controls {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
@@ -195,6 +239,46 @@
       <div class="info-item">
         <div class="info-label">Z Position</div>
         <div class="info-value" id="z_position">0.000</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="panel">
+    <h3>Work Coordinate System</h3>
+    
+    <div class="coordinate_display">
+      <div></div>
+      <div style="text-align: center; font-weight: bold;">X</div>
+      <div style="text-align: center; font-weight: bold;">Y</div>
+      <div style="text-align: center; font-weight: bold;">Z</div>
+      
+      <div class="coordinate_label">MPos:</div>
+      <div class="coordinate_value machine_coords" id="machine_x_position">0.000</div>
+      <div class="coordinate_value machine_coords" id="machine_y_position">0.000</div>
+      <div class="coordinate_value machine_coords" id="machine_z_position">0.000</div>
+      
+      <div class="coordinate_label">WPos:</div>
+      <div class="coordinate_value work_coords" id="work_x_position">0.000</div>
+      <div class="coordinate_value work_coords" id="work_y_position">0.000</div>
+      <div class="coordinate_value work_coords" id="work_z_position">0.000</div>
+    </div>
+    
+    <div>
+      <h4>Set Zero:</h4>
+      <div class="zero_controls">
+        <button id="zero_all_button">All 0</button>
+        <button id="zero_x_button">X0</button>
+        <button id="zero_y_button">Y0</button>
+        <button id="zero_z_button">Z0</button>
+        <button id="zero_xy_button">X0Y0</button>
+      </div>
+    </div>
+    
+    <div>
+      <h4>Navigation:</h4>
+      <div class="navigation_controls">
+        <button id="go_work_zero_button">Go X0Y0</button>
+        <button id="go_machine_zero_button">Go Machine X0Y0</button>
       </div>
     </div>
   </div>

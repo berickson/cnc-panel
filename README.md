@@ -6,8 +6,17 @@ A progressive web application for controlling the Genmitsu 3030 ProVer max CNC m
 
 - Framework-free HTML/JavaScript implementation
 - Direct serial communication via Web Serial API
-- Real-time status monitoring
-- Connection management
+- Real-time status monitoring with activity-based updates
+- Emergency stop functionality
+- Manual jog controls (X/Y/Z axes) with configurable step sizes
+- Homing operations (all axes or individual axes)
+- Work coordinate system (G54) zero setting with individual and combined axis controls
+- Enhanced position display showing both machine (MPos) and work (WPos) coordinates
+- Safe navigation to work and machine coordinates (preserving Z height)
+- Connection management with comprehensive error handling
+- Communication log with copy functionality
+- Connection status indicator
+- Command tracking to distinguish internal vs external activity
 
 ## Getting Started
 
@@ -72,10 +81,17 @@ If you want to control the CNC from a different computer, you have two options:
 
 ### Current Features
 
-- **Connection Management**: Connect/disconnect to CNC via USB
-- **Status Monitoring**: Real-time machine state and position display
-- **Communication Log**: View all commands sent and responses received
-- **Error Handling**: Clear error messages for troubleshooting
+- **Connection Management**: Connect/disconnect to CNC via USB with detailed error handling
+- **Status Monitoring**: Real-time machine state and position display that updates automatically during jogging
+- **Emergency Stop**: Immediate halt command (!) for safety
+- **Manual Controls**: Jog X/Y/Z axes with configurable step sizes (0.1mm, 1mm, 10mm)
+- **Homing**: Home all axes or individual axes ($H commands)
+- **Work Coordinate System**: Set work zero points (G54) for X, Y, Z individually or combined (X0Y0)
+- **Position Display**: Shows both machine coordinates (MPos) and work coordinates (WPos) in real-time
+- **Safe Navigation**: Move to work zero or machine zero while preserving Z height
+- **Communication Log**: View all commands sent and responses received with copy functionality
+- **Activity Detection**: Automatic status updates when external jogging is detected (built-in controller)
+- **Error Handling**: Clear error messages for troubleshooting and connection issues
 
 ### Browser Compatibility
 
@@ -109,7 +125,8 @@ The application consists of:
 
 ## Next Steps
 
-- Add G-code sending capabilities
-- Implement homing and probing functions
-- Add job file loading and execution
-- Create panel mode for kiosk usage
+- Implement feed rate and spindle speed overrides  
+- Add G-code file loading and execution
+- Create probing workflows for tool length and workpiece measurement
+- Add spindle control (start/stop with speed control)
+- Implement panel mode for kiosk usage
