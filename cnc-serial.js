@@ -599,10 +599,8 @@ class CNCSerial {
       return;
     }
     
-    if (confirm('Set X, Y, and Z zero at current position?')) {
-      this.log('Setting all axes to zero...');
-      await this.send_command('G10 L20 P1 X0 Y0 Z0');
-    }
+    this.log('Setting all axes to zero...');
+    await this.send_command('G10 L20 P1 X0 Y0 Z0');
   }
   
   async zero_axis(axis) {
@@ -611,14 +609,8 @@ class CNCSerial {
       return;
     }
     
-    const confirm_msg = axis === 'Z' ? 
-      `Set ${axis} zero at current position? WARNING: Ensure tool is at correct Z height!` :
-      `Set ${axis} zero at current position?`;
-    
-    if (confirm(confirm_msg)) {
-      this.log(`Setting ${axis} axis to zero...`);
-      await this.send_command(`G10 L20 P1 ${axis}0`);
-    }
+    this.log(`Setting ${axis} axis to zero...`);
+    await this.send_command(`G10 L20 P1 ${axis}0`);
   }
   
   async zero_xy() {
@@ -627,10 +619,8 @@ class CNCSerial {
       return;
     }
     
-    if (confirm('Set X and Y zero at current position?')) {
-      this.log('Setting X and Y axes to zero...');
-      await this.send_command('G10 L20 P1 X0 Y0');
-    }
+    this.log('Setting X and Y axes to zero...');
+    await this.send_command('G10 L20 P1 X0 Y0');
   }
   
   async go_work_zero() {
