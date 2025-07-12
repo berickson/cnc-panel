@@ -288,6 +288,7 @@
         <button id="connect_button">Connect</button>
         <button id="disconnect_button" disabled>Disconnect</button>
         <button id="status_button" disabled>Status</button>
+        <button id="clear_alarm_button" disabled>Clear Alarm</button>
         <button id="toggle_log_button">Show Log</button>
       </div>
     </div>
@@ -317,6 +318,7 @@
       <div class="compact_panel">
         <h4 style="margin: 0 0 6px 0; font-size: 12px;">Work Coordinate Controls</h4>
         <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px;">
+          <button id="home_button" style="font-size: 12px; padding: 6px 8px;">Home</button>
           <button id="zero_all_button" style="font-size: 12px; padding: 6px 8px;">All 0</button>
           <button id="zero_x_button" style="font-size: 12px; padding: 6px 8px;">X0</button>
           <button id="zero_y_button" style="font-size: 12px; padding: 6px 8px;">Y0</button>
@@ -351,7 +353,7 @@
           <button id="step_10_button" style="padding: 4px 6px; font-size: 12px;">10</button>
         </div>
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: start;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start;">
           <div>
             <h4 style="margin: 0 0 6px 0; font-size: 12px; text-align: center;">X/Y Axis</h4>
             <div class="jog_buttons">
@@ -379,16 +381,6 @@
               <div></div>
               <button id="jog_z_minus_button" class="jog_button">Z-</button>
               <div></div>
-            </div>
-          </div>
-          
-          <div>
-            <h4 style="margin: 0 0 6px 0; font-size: 12px; text-align: center;">Homing</h4>
-            <div style="display: flex; flex-direction: column; gap: 4px;">
-              <button id="home_all_button" style="font-size: 12px; padding: 6px;">Home All</button>
-              <button id="home_x_button" style="font-size: 12px; padding: 6px;">Home X</button>
-              <button id="home_y_button" style="font-size: 12px; padding: 6px;">Home Y</button>
-              <button id="home_z_button" style="font-size: 12px; padding: 6px;">Home Z</button>
             </div>
           </div>
         </div>

@@ -13,6 +13,15 @@ class CNCSerial {
     this.jog_interval = null; // For continuous jogging
     this.jog_hold_timeout = null; // To detect hold vs tap
     this.is_jogging_continuous = false; // Track continuous jog state
+    this.status_polling_interval = null; // Regular status polling
+    this.last_status_request_time = 0; // Track when we last requested status
+    this.current_alarm_state = null; // Track current alarm state
+    this.current_error_message = null; // Track current error message
+    this.max_log_lines = 500; // Maximum lines to keep in log
+    this.status_poll_count = 0; // Count consecutive status polls
+    this.last_log_was_status = false; // Track if last log was a status message
+    this.is_homing = false; // Track if we initiated homing
+    this.homing_start_time = 0; // When homing started
     
     // UI elements
     this.connect_button = document.getElementById('connect_button');
@@ -24,6 +33,7 @@ class CNCSerial {
     this.error_container = document.getElementById('error_container');
     this.copy_log_button = document.getElementById('copy_log_button');
     this.toggle_log_button = document.getElementById('toggle_log_button');
+    this.clear_alarm_button = document.getElementById('clear_alarm_button');
     
     // Manual control elements
     this.step_size_input = document.getElementById('step_size_input');
@@ -39,11 +49,8 @@ class CNCSerial {
     this.jog_z_plus_button = document.getElementById('jog_z_plus_button');
     this.jog_z_minus_button = document.getElementById('jog_z_minus_button');
     
-    // Home buttons
-    this.home_all_button = document.getElementById('home_all_button');
-    this.home_x_button = document.getElementById('home_x_button');
-    this.home_y_button = document.getElementById('home_y_button');
-    this.home_z_button = document.getElementById('home_z_button');
+    // Home button
+    this.home_button = document.getElementById('home_button');
     
     // Zero control elements
     this.zero_all_button = document.getElementById('zero_all_button');
@@ -120,6 +127,9 @@ class CNCSerial {
     this.status_button.addEventListener('click', () => this.request_status());
     this.copy_log_button.addEventListener('click', () => this.copy_log());
     this.toggle_log_button.addEventListener('click', () => this.toggle_log());
+    if (this.clear_alarm_button) {
+      this.clear_alarm_button.addEventListener('click', () => this.clear_alarm());
+    }
     
     // Add settings check button functionality
     document.addEventListener('keydown', (e) => {
@@ -143,11 +153,8 @@ class CNCSerial {
     this.setup_jog_button(this.jog_z_plus_button, 'Z', '+');
     this.setup_jog_button(this.jog_z_minus_button, 'Z', '-');
     
-    // Home controls
-    this.home_all_button.addEventListener('click', () => this.home_all());
-    this.home_x_button.addEventListener('click', () => this.home_axis('X'));
-    this.home_y_button.addEventListener('click', () => this.home_axis('Y'));
-    this.home_z_button.addEventListener('click', () => this.home_axis('Z'));
+    // Home control
+    this.home_button.addEventListener('click', () => this.home_all());
     
     // Zero controls
     this.zero_all_button.addEventListener('click', () => this.zero_all());
@@ -327,6 +334,17 @@ class CNCSerial {
       
       await this.request_status(); // Get initial status
       
+      // Start regular status polling at 10Hz (100ms intervals)
+      this.status_polling_interval = setInterval(() => {
+        if (this.is_connected) {
+          const now = Date.now();
+          // Only send status request if enough time has passed since last one (prevent buildup)
+          if (now - this.last_status_request_time >= 95) { // 95ms to allow for some timing variance
+            this.request_status();
+          }
+        }
+      }, 100);
+      
       // Check for activity more frequently (every 100ms) and request status if there was recent activity
       this.activity_check_interval = setInterval(() => {
         const now = Date.now();
@@ -334,11 +352,14 @@ class CNCSerial {
         
         // Request status if there was activity in the last 3 seconds, but not more than once per 100ms
         if (this.is_connected && time_since_activity < 3000 && time_since_activity > 10) {
-          this.request_status();
+          if (now - this.last_status_request_time >= 95) {
+            this.request_status();
+          }
         }
       }, 100);
       
       this.log('Connected - monitoring for activity');
+      this.log(`Status polling at 10Hz (log folded to reduce spam, max ${this.max_log_lines} lines)`);
       
     } catch (error) {
       this.show_error(`Connection failed: ${error.message}`);
@@ -361,6 +382,12 @@ class CNCSerial {
       if (this.final_status_timeout) {
         clearTimeout(this.final_status_timeout);
         this.final_status_timeout = null;
+      }
+      
+      // Stop status polling
+      if (this.status_polling_interval) {
+        clearInterval(this.status_polling_interval);
+        this.status_polling_interval = null;
       }
       
       // Stop activity monitoring
@@ -393,6 +420,10 @@ class CNCSerial {
       
       this.is_connected = false;
       this.message_buffer = '';
+      this.current_alarm_state = null;
+      this.current_error_message = null;
+      this.last_log_was_status = false;
+      this.status_poll_count = 0;
       this.update_connection_status();
       this.log('Disconnected');
       
@@ -408,7 +439,16 @@ class CNCSerial {
         if (done) break;
         
         const text = new TextDecoder().decode(value);
-        this.log(`← ${text.trim()}`);
+        
+        // Don't log status responses to reduce log spam
+        const trimmed_text = text.trim();
+        if (!trimmed_text.startsWith('<') || !trimmed_text.endsWith('>')) {
+          this.log(`← ${trimmed_text}`);
+          this.last_log_was_status = false;
+        } else {
+          // Handle status response logging with folding
+          this.log_status_response(trimmed_text);
+        }
         
         // Add to buffer and process complete messages
         this.message_buffer += text;
@@ -452,7 +492,15 @@ class CNCSerial {
     try {
       const data = new TextEncoder().encode(command + '\n');
       await this.writer.write(data);
-      this.log(`→ ${command}`);
+      
+      // Don't log status requests to reduce log spam
+      if (command !== '?') {
+        this.log(`→ ${command}`);
+        this.last_log_was_status = false;
+      } else {
+        // Handle status request logging with folding
+        this.log_status_request();
+      }
       
       // Track this command so we can ignore its "ok" response
       this.pending_commands.add(command);
@@ -462,7 +510,21 @@ class CNCSerial {
   }
   
   async request_status() {
+    const now = Date.now();
+    this.last_status_request_time = now;
     await this.send_command('?');
+  }
+  
+  async clear_alarm() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Clearing alarm state...');
+    await this.send_command('$X'); // Unlock command
+    this.current_alarm_state = null;
+    // Status polling will update the UI automatically
   }
   
   // GRBL Error Code Translation
@@ -546,8 +608,66 @@ class CNCSerial {
     const alarm_info = alarm_codes[code];
     if (alarm_info) {
       return `Alarm ${code}: ${alarm_info.desc} (${alarm_info.remedy})`;
+    } else if (code === 0) {
+      return `Alarm 0: Invalid alarm code - GRBL alarm codes are 1-10. Check for communication issues.`;
     } else {
-      return `Alarm ${code}: ${original}`;
+      return `Alarm ${code}: ${original} (Unknown alarm code)`;
+    }
+  }
+  
+  // GRBL Status Code Translation (Machine States)
+  translate_grbl_status(status_code) {
+    // Handle sub-states with colon notation (e.g., "Hold:0", "Door:1")
+    const [main_state, sub_state] = status_code.split(':');
+    
+    switch (main_state) {
+      case 'Idle':
+        return 'Idle - Ready to receive commands';
+      
+      case 'Run':
+        return 'Run - Executing G-code';
+      
+      case 'Hold':
+        if (sub_state === '0') {
+          return 'Hold:0 - Hold complete, ready to resume';
+        } else if (sub_state === '1') {
+          return 'Hold:1 - Hold in progress, reset will throw alarm';
+        } else {
+          return 'Hold - Feed hold active';
+        }
+      
+      case 'Jog':
+        return 'Jog - Jogging motion active';
+      
+      case 'Home':
+        return 'Home - Homing cycle in progress';
+      
+      case 'Alarm':
+        return 'Alarm - Emergency state, see alarm message';
+      
+      case 'Check':
+        return 'Check - G-code check mode active';
+      
+      case 'Door':
+        if (sub_state === '0') {
+          return 'Door:0 - Door closed, ready to resume';
+        } else if (sub_state === '1') {
+          return 'Door:1 - Machine stopped, door ajar, cannot resume';
+        } else if (sub_state === '2') {
+          return 'Door:2 - Door opened, parking in progress';
+        } else if (sub_state === '3') {
+          return 'Door:3 - Door closed, restoring from park';
+        } else {
+          return 'Door - Safety door state active';
+        }
+      
+      case 'Sleep':
+        return 'Sleep - Sleep mode active, reset to wake';
+      
+      default:
+        // Return original if not recognized, but log for debugging
+        this.log(`Unknown status code: ${status_code}`);
+        return status_code;
     }
   }
 
@@ -566,7 +686,17 @@ class CNCSerial {
         error_msg += ' - Homing not enabled. Send $22=1 to enable homing.';
       }
       
-      this.show_error(error_msg);
+      const translated_error = this.translate_grbl_error(trimmed);
+      this.current_error_message = `CNC Error: ${translated_error}`;
+      this.show_error(this.current_error_message);
+    }
+    
+    // Handle alarm messages
+    if (trimmed.startsWith('ALARM:')) {
+      const translated_alarm = this.translate_grbl_error(trimmed);
+      this.current_alarm_state = trimmed;
+      this.current_error_message = `CNC Alarm: ${translated_alarm}`;
+      this.show_error(this.current_error_message);
     }
     
     // Also track activity for jog state changes (when machine enters/exits Jog state)
@@ -574,6 +704,29 @@ class CNCSerial {
       const status_data = trimmed.slice(1, -1);
       const parts = status_data.split('|');
       const state = parts[0];
+      
+      // Check if machine is no longer in alarm state
+      if (this.current_alarm_state && !state.startsWith('Alarm')) {
+        this.current_alarm_state = null;
+        // Clear error if it was an alarm
+        if (this.current_error_message && this.current_error_message.includes('Alarm')) {
+          this.clear_error();
+          this.current_error_message = null;
+          this.log('Alarm state cleared');
+        }
+      }
+      
+      // Check if machine is in alarm state
+      if (state.startsWith('Alarm')) {
+        if (!this.current_alarm_state) {
+          // If we see "Alarm" state but don't have a specific alarm code,
+          // this means the machine is in alarm mode but we missed the specific ALARM: message
+          this.current_alarm_state = 'ALARM:unknown';
+          this.current_error_message = 'CNC Alarm: Machine is in alarm state. Check communication log for specific alarm details.';
+          this.show_error(this.current_error_message);
+          this.log('Machine entered alarm state - check for previous ALARM: messages in log');
+        }
+      }
       
       // If we see the machine enter Jog state and we didn't send a jog command recently,
       // this is external jogging activity
@@ -610,8 +763,60 @@ class CNCSerial {
       const parts = status_data.split('|');
       
       if (parts.length > 0) {
-        // Machine state (Idle, Run, Hold, etc.)
-        if (this.machine_state) this.machine_state.textContent = parts[0];
+        // Machine state (Idle, Run, Hold, Home, etc.)
+        const state = parts[0];
+        if (this.machine_state) {
+          // Enhanced status code display with GRBL v1.1 compliant states
+          const status_display = this.translate_grbl_status(state);
+          
+          // Handle homing state management
+          if (state.startsWith('Home')) {
+            // We're actually in homing state
+            this.machine_state.textContent = status_display;
+            this.log(`*** MACHINE STATE CHANGE: ${status_display} ***`);
+            
+            // Update button to show we're actually homing
+            const home_button = document.getElementById('home_button');
+            if (home_button) {
+              home_button.style.backgroundColor = '#ff6b6b';
+              home_button.textContent = 'Homing...';
+              home_button.disabled = true;
+            }
+          } else if (state === 'Idle' && this.is_homing) {
+            // Homing just completed
+            this.is_homing = false;
+            this.machine_state.textContent = status_display;
+            
+            const home_button = document.getElementById('home_button');
+            if (home_button) {
+              home_button.style.backgroundColor = '';
+              home_button.textContent = 'Home';
+              home_button.disabled = false;
+            }
+            
+            this.log('*** HOMING COMPLETED - Machine returned to Idle ***');
+          } else if (!this.is_homing || (this.is_homing && Date.now() - this.homing_start_time > 5000)) {
+            // Normal state update, or homing has been going for more than 5 seconds
+            // (In case we missed the Home state)
+            this.machine_state.textContent = status_display;
+            
+            if (state.startsWith('Alarm') || state.startsWith('Hold')) {
+              this.log(`*** MACHINE STATE CHANGE: ${status_display} ***`);
+            }
+            
+            // Reset homing if we're in idle and it's been a while
+            if (state === 'Idle' && this.is_homing) {
+              this.is_homing = false;
+              const home_button = document.getElementById('home_button');
+              if (home_button) {
+                home_button.style.backgroundColor = '';
+                home_button.textContent = 'Home';
+                home_button.disabled = false;
+              }
+            }
+          }
+          // If we're in early homing state (< 5 seconds), don't override the "Starting Home..." text
+        }
         
         let machine_coords = null;
         let work_coords = null;
@@ -659,11 +864,64 @@ class CNCSerial {
     // Handle other responses
     if (trimmed === 'ok') {
       // Command completed successfully
-    } else if (trimmed.startsWith('error:') || trimmed.startsWith('ALARM:')) {
-      const translated_error = this.translate_grbl_error(trimmed);
-      this.show_error(`CNC Error: ${translated_error}`);
     } else if (trimmed.startsWith('Grbl')) {
       this.log(`System info: ${trimmed}`);
+    }
+  }
+  
+  log_status_request() {
+    if (this.last_log_was_status) {
+      this.status_poll_count++;
+      // Update the last line instead of adding a new one
+      this.update_last_log_line(`→ ? (x${this.status_poll_count})`);
+    } else {
+      this.status_poll_count = 1;
+      this.log(`→ ?`);
+      this.last_log_was_status = true;
+    }
+  }
+  
+  log_status_response(response) {
+    if (this.last_log_was_status) {
+      // Always log important states like homing, alarms, and holds
+      if (response.includes('Home') || response.includes('Alarm') || response.includes('Hold') || response.includes('Door')) {
+        this.log(`← ${response}`);
+        this.last_log_was_status = false; // Reset so we can see the next important status change
+      }
+      // Don't log regular idle/run status responses to reduce spam
+      return;
+    } else {
+      this.log(`← ${response}`);
+    }
+  }
+  
+  update_last_log_line(new_text) {
+    const lines = this.log_element.textContent.split('\n');
+    if (lines.length > 0) {
+      // Replace the last non-empty line
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i].trim()) {
+          const timestamp = new Date().toLocaleTimeString();
+          lines[i] = `[${timestamp}] ${new_text}`;
+          break;
+        }
+      }
+      this.log_element.textContent = lines.join('\n');
+      this.log_element.scrollTop = this.log_element.scrollHeight;
+    }
+  }
+  
+  trim_log() {
+    const lines = this.log_element.textContent.split('\n');
+    if (lines.length > this.max_log_lines) {
+      // Keep only the last max_log_lines
+      const trimmed_lines = lines.slice(-this.max_log_lines);
+      this.log_element.textContent = trimmed_lines.join('\n');
+      
+      // Add trim notification without calling log() to avoid recursion
+      const timestamp = new Date().toLocaleTimeString();
+      this.log_element.textContent += `\n[${timestamp}] [Log trimmed to ${this.max_log_lines} lines]`;
+      this.log_element.scrollTop = this.log_element.scrollHeight;
     }
   }
   
@@ -674,6 +932,7 @@ class CNCSerial {
       this.connect_button.disabled = true;
       this.disconnect_button.disabled = false;
       this.status_button.disabled = false;
+      if (this.clear_alarm_button) this.clear_alarm_button.disabled = false;
       
       // Enable manual controls when connected
       this.enable_jog_controls(true);
@@ -683,6 +942,7 @@ class CNCSerial {
       this.connect_button.disabled = false;
       this.disconnect_button.disabled = true;
       this.status_button.disabled = true;
+      if (this.clear_alarm_button) this.clear_alarm_button.disabled = true;
       
       // Disable manual controls when disconnected
       this.enable_jog_controls(false);
@@ -710,10 +970,7 @@ class CNCSerial {
     this.jog_y_minus_button.disabled = !enabled;
     this.jog_z_plus_button.disabled = !enabled;
     this.jog_z_minus_button.disabled = !enabled;
-    this.home_all_button.disabled = !enabled;
-    this.home_x_button.disabled = !enabled;
-    this.home_y_button.disabled = !enabled;
-    this.home_z_button.disabled = !enabled;
+    this.home_button.disabled = !enabled;
     
     // Enable/disable zero controls
     this.zero_all_button.disabled = !enabled;
@@ -739,9 +996,43 @@ class CNCSerial {
       return;
     }
     
-    this.log('Starting home all axes...');
+    // Set homing state flags
+    this.is_homing = true;
+    this.homing_start_time = Date.now();
+    
+    // Immediately update UI to show homing has started
+    if (this.machine_state) {
+      this.machine_state.textContent = 'Starting Home...';
+    }
+    
+    // Visual feedback on home button
+    const home_button = document.getElementById('home_button');
+    if (home_button) {
+      home_button.style.backgroundColor = '#ffc107';
+      home_button.textContent = 'Homing...';
+      home_button.disabled = true;
+    }
+    
+    this.log('*** STARTING HOME ALL AXES ***');
     this.log('Note: Homing requires limit switches to be connected and enabled in Grbl settings ($22=1)');
+    this.log('Watch for "Home" state in machine status during homing cycle');
+    this.log('Note: GRBL may not respond to status requests during homing - this is normal');
+    
+    // Mark activity for homing
+    this.last_activity_time = Date.now();
+    
     await this.send_command('$H');
+    
+    // Reset button after a delay (will be overridden by actual status updates)
+    setTimeout(() => {
+      if (home_button && this.is_homing) {
+        home_button.style.backgroundColor = '';
+        home_button.textContent = 'Home';
+        home_button.disabled = false;
+        this.is_homing = false;
+        this.log('*** HOMING TIMEOUT - Resetting button ***');
+      }
+    }, 30000); // 30 second timeout
   }
   
   async home_axis(axis) {
@@ -752,6 +1043,7 @@ class CNCSerial {
     
     this.log(`Starting home ${axis} axis...`);
     this.log('Note: Homing requires limit switches to be connected and enabled in Grbl settings ($22=1)');
+    this.log('Watch for "Home" state in machine status during homing cycle');
     await this.send_command(`$H${axis}`);
   }
   
@@ -809,6 +1101,17 @@ class CNCSerial {
     const timestamp = new Date().toLocaleTimeString();
     this.log_element.textContent += `[${timestamp}] ${message}\n`;
     this.log_element.scrollTop = this.log_element.scrollHeight;
+    
+    // Reset status folding for non-status messages
+    if (!message.includes('?') && !message.includes('Status polling') && !message.includes('Log trimmed')) {
+      this.last_log_was_status = false;
+      this.status_poll_count = 0;
+    }
+    
+    // Trim log if it gets too long (but avoid recursion)
+    if (!message.includes('Log trimmed')) {
+      this.trim_log();
+    }
   }
   
   show_error(message) {
