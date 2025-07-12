@@ -1,8 +1,12 @@
 # CNC Panel Development Plans
 
 ## Next Development Priorities
-[ ] UI should target 7" 1024×600 touch, no keyboard, no mouse
-[ ] Support kiosk mode, powers on with CNC
+[x] UI should target 7" 1024×600 touch, no keyboard, no mouse
+[x] Support kiosk mode, powers on with CNC
+- [x] simplify and shrink down coordinate display
+- [x] touch should not select text
+- [x] console is hidden by default, maybe show it with a button
+- [x] utilize full width
 [ ] Load gcode files from disk and send to CNC
 - [ ] job progres
 [ ] Auto home and zero presets

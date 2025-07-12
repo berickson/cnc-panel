@@ -23,6 +23,7 @@ class CNCSerial {
     this.log_element = document.getElementById('communication_log');
     this.error_container = document.getElementById('error_container');
     this.copy_log_button = document.getElementById('copy_log_button');
+    this.toggle_log_button = document.getElementById('toggle_log_button');
     
     // Manual control elements
     this.step_size_input = document.getElementById('step_size_input');
@@ -63,9 +64,6 @@ class CNCSerial {
     
     // Status elements
     this.machine_state = document.getElementById('machine_state');
-    this.x_position = document.getElementById('x_position');
-    this.y_position = document.getElementById('y_position');
-    this.z_position = document.getElementById('z_position');
     
     // Log initialization info
     this.log(`CNC Panel initialized`);
@@ -121,6 +119,7 @@ class CNCSerial {
     this.disconnect_button.addEventListener('click', () => this.disconnect());
     this.status_button.addEventListener('click', () => this.request_status());
     this.copy_log_button.addEventListener('click', () => this.copy_log());
+    this.toggle_log_button.addEventListener('click', () => this.toggle_log());
     
     // Add settings check button functionality
     document.addEventListener('keydown', (e) => {
@@ -228,6 +227,9 @@ class CNCSerial {
     const distance = direction === '+' ? step_size : -step_size;
     const command = `$J=G91${axis}${distance}F1000`;
     
+    // Mark activity time for jog command
+    this.last_activity_time = Date.now();
+    
     await this.send_command(command);
   }
   
@@ -239,6 +241,9 @@ class CNCSerial {
     
     this.is_jogging_continuous = true;
     this.log(`Starting continuous jog ${axis}${direction}`);
+    
+    // Mark activity time for jog command
+    this.last_activity_time = Date.now();
     
     // Send continuous jog command - use proper $J= format with large distance
     const feed_rate = 1000; // mm/min
@@ -322,13 +327,16 @@ class CNCSerial {
       
       await this.request_status(); // Get initial status
       
-      // Check for activity more frequently (every 50ms = 20 times per second) and request status if there was recent activity
+      // Check for activity more frequently (every 100ms) and request status if there was recent activity
       this.activity_check_interval = setInterval(() => {
         const now = Date.now();
-        if (this.is_connected && (now - this.last_activity_time) < 2000 && (now - this.last_activity_time) > 50) {
+        const time_since_activity = now - this.last_activity_time;
+        
+        // Request status if there was activity in the last 3 seconds, but not more than once per 100ms
+        if (this.is_connected && time_since_activity < 3000 && time_since_activity > 10) {
           this.request_status();
         }
-      }, 50);
+      }, 100);
       
       this.log('Connected - monitoring for activity');
       
@@ -515,7 +523,7 @@ class CNCSerial {
       
       if (parts.length > 0) {
         // Machine state (Idle, Run, Hold, etc.)
-        this.machine_state.textContent = parts[0];
+        if (this.machine_state) this.machine_state.textContent = parts[0];
         
         let machine_coords = null;
         let work_coords = null;
@@ -536,31 +544,26 @@ class CNCSerial {
         
         // Update machine position display
         if (machine_coords && machine_coords.length >= 3) {
-          this.machine_x_position.textContent = parseFloat(machine_coords[0]).toFixed(3);
-          this.machine_y_position.textContent = parseFloat(machine_coords[1]).toFixed(3);
-          this.machine_z_position.textContent = parseFloat(machine_coords[2]).toFixed(3);
-          
-          // Also update the main position display (legacy)
-          this.x_position.textContent = parseFloat(machine_coords[0]).toFixed(3);
-          this.y_position.textContent = parseFloat(machine_coords[1]).toFixed(3);
-          this.z_position.textContent = parseFloat(machine_coords[2]).toFixed(3);
+          if (this.machine_x_position) this.machine_x_position.textContent = parseFloat(machine_coords[0]).toFixed(3);
+          if (this.machine_y_position) this.machine_y_position.textContent = parseFloat(machine_coords[1]).toFixed(3);
+          if (this.machine_z_position) this.machine_z_position.textContent = parseFloat(machine_coords[2]).toFixed(3);
         }
         
         // Update work position display
         if (work_coords && work_coords.length >= 3) {
           // Direct WPos data available
-          this.work_x_position.textContent = parseFloat(work_coords[0]).toFixed(3);
-          this.work_y_position.textContent = parseFloat(work_coords[1]).toFixed(3);
-          this.work_z_position.textContent = parseFloat(work_coords[2]).toFixed(3);
+          if (this.work_x_position) this.work_x_position.textContent = parseFloat(work_coords[0]).toFixed(3);
+          if (this.work_y_position) this.work_y_position.textContent = parseFloat(work_coords[1]).toFixed(3);
+          if (this.work_z_position) this.work_z_position.textContent = parseFloat(work_coords[2]).toFixed(3);
         } else if (machine_coords && machine_coords.length >= 3) {
           // Calculate WPos from MPos using stored WCO: WPos = MPos - WCO
           const work_x = parseFloat(machine_coords[0]) - this.last_work_offset[0];
           const work_y = parseFloat(machine_coords[1]) - this.last_work_offset[1];
           const work_z = parseFloat(machine_coords[2]) - this.last_work_offset[2];
           
-          this.work_x_position.textContent = work_x.toFixed(3);
-          this.work_y_position.textContent = work_y.toFixed(3);
-          this.work_z_position.textContent = work_z.toFixed(3);
+          if (this.work_x_position) this.work_x_position.textContent = work_x.toFixed(3);
+          if (this.work_y_position) this.work_y_position.textContent = work_y.toFixed(3);
+          if (this.work_z_position) this.work_z_position.textContent = work_z.toFixed(3);
         }
       }
     }
@@ -596,21 +599,18 @@ class CNCSerial {
       this.enable_jog_controls(false);
       
       // Reset status display
-      this.machine_state.textContent = 'Unknown';
-      this.x_position.textContent = '0.000';
-      this.y_position.textContent = '0.000';
-      this.z_position.textContent = '0.000';
+      if (this.machine_state) this.machine_state.textContent = 'Unknown';
       
       // Reset stored work offset
       this.last_work_offset = [0, 0, 0];
       
       // Reset enhanced position displays
-      this.machine_x_position.textContent = '0.000';
-      this.machine_y_position.textContent = '0.000';
-      this.machine_z_position.textContent = '0.000';
-      this.work_x_position.textContent = '0.000';
-      this.work_y_position.textContent = '0.000';
-      this.work_z_position.textContent = '0.000';
+      if (this.machine_x_position) this.machine_x_position.textContent = '0.000';
+      if (this.machine_y_position) this.machine_y_position.textContent = '0.000';
+      if (this.machine_z_position) this.machine_z_position.textContent = '0.000';
+      if (this.work_x_position) this.work_x_position.textContent = '0.000';
+      if (this.work_y_position) this.work_y_position.textContent = '0.000';
+      if (this.work_z_position) this.work_z_position.textContent = '0.000';
     }
   }
   
@@ -745,6 +745,17 @@ class CNCSerial {
     }).catch(err => {
       this.show_error('Failed to copy log: ' + err.message);
     });
+  }
+  
+  toggle_log() {
+    const log_visible = this.log_element.classList.contains('visible');
+    if (log_visible) {
+      this.log_element.classList.remove('visible');
+      this.toggle_log_button.textContent = 'Show Log';
+    } else {
+      this.log_element.classList.add('visible');
+      this.toggle_log_button.textContent = 'Hide Log';
+    }
   }
   
   async auto_connect() {

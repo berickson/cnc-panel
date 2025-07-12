@@ -7,25 +7,71 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
+      margin: 0;
+      padding: 4px;
       background-color: #f5f5f5;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+    
+    .main_container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr auto;
+      gap: 4px;
+      height: calc(100vh - 8px);
+      overflow: hidden;
+    }
+    
+    .header_panel {
+      grid-column: 1 / -1;
+      background: white;
+      border-radius: 4px;
+      padding: 4px 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .left_panel {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+    }
+    
+    .right_panel {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
     }
     
     .panel {
       background: white;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 4px;
+      padding: 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      flex: 1;
+      overflow: hidden;
+    }
+    
+    .compact_panel {
+      background: white;
+      border-radius: 4px;
+      padding: 4px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     
     .status {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
+      gap: 6px;
+      flex-wrap: wrap;
     }
     
     .status-indicator {
@@ -43,11 +89,14 @@
       background-color: #007bff;
       color: white;
       border: none;
-      padding: 10px 20px;
+      padding: 6px 8px;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 14px;
-      margin-right: 10px;
+      font-size: 10px;
+      margin-right: 4px;
+      min-height: 28px;
+      touch-action: manipulation;
+      user-select: none;
     }
     
     button:hover {
@@ -61,57 +110,66 @@
     
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 15px;
-      margin-top: 20px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 8px;
     }
     
     .info-item {
       background-color: #f8f9fa;
-      padding: 10px;
+      padding: 6px;
       border-radius: 4px;
-      border-left: 4px solid #007bff;
+      border-left: 3px solid #007bff;
+      text-align: center;
     }
     
     .info-label {
       font-weight: bold;
       color: #495057;
-      font-size: 12px;
+      font-size: 10px;
       text-transform: uppercase;
     }
     
     .info-value {
-      font-size: 16px;
+      font-size: 14px;
       color: #212529;
-      margin-top: 5px;
+      margin-top: 2px;
+      font-family: monospace;
     }
     
     .log {
       background-color: #343a40;
       color: #ffffff;
-      padding: 15px;
+      padding: 8px;
       border-radius: 4px;
       font-family: monospace;
-      font-size: 12px;
-      height: 200px;
+      font-size: 10px;
+      height: 120px;
       overflow-y: auto;
       white-space: pre-wrap;
+      display: none;
+    }
+    
+    .log.visible {
+      display: block;
     }
     
     .error {
       color: #dc3545;
-      margin-top: 10px;
-      padding: 10px;
+      margin: 2px 0;
+      padding: 4px;
       background-color: #f8d7da;
       border-radius: 4px;
+      font-size: 10px;
     }
     
     .warning {
       color: #856404;
-      margin-top: 10px;
-      padding: 10px;
+      margin: 2px 0;
+      padding: 4px;
       background-color: #fff3cd;
       border-radius: 4px;
+      font-size: 10px;
     }
     
     .emergency_stop {
@@ -141,10 +199,10 @@
     }
     
     .jog_button {
-      width: 40px;
-      height: 40px;
+      width: 32px;
+      height: 32px;
       padding: 0;
-      font-size: 12px;
+      font-size: 10px;
       font-weight: bold;
       user-select: none;
       -webkit-user-select: none;
@@ -175,10 +233,11 @@
     .coordinate_display {
       display: grid;
       grid-template-columns: auto 1fr 1fr 1fr;
-      gap: 10px;
+      gap: 4px;
       align-items: center;
-      margin: 10px 0;
+      margin: 4px 0;
       font-family: monospace;
+      font-size: 10px;
     }
     
     .coordinate_label {
@@ -188,10 +247,11 @@
     
     .coordinate_value {
       background-color: #f8f9fa;
-      padding: 8px;
+      padding: 2px;
       border-radius: 4px;
       text-align: center;
       border: 2px solid transparent;
+      font-size: 9px;
     }
     
     .machine_coords {
@@ -218,141 +278,125 @@
   </style>
 </head>
 <body>
-  <h1>CNC Panel - Genmitsu 3030 ProVer Max</h1>
-  
-  <div class="panel">
-    <div class="status">
-      <div class="status-indicator" id="status_indicator"></div>
-      <span id="status_text">Disconnected</span>
-    </div>
-    
-    <button id="connect_button">Connect to CNC</button>
-    <button id="disconnect_button" disabled>Disconnect</button>
-    <button id="status_button" disabled>Request Status</button>
-  </div>
-  
-  <div class="panel">
-    <h3>Machine Status</h3>
-    <div class="info-grid">
-      <div class="info-item">
-        <div class="info-label">State</div>
-        <div class="info-value" id="machine_state">Unknown</div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">X Position</div>
-        <div class="info-value" id="x_position">0.000</div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">Y Position</div>
-        <div class="info-value" id="y_position">0.000</div>
-      </div>
-      <div class="info-item">
-        <div class="info-label">Z Position</div>
-        <div class="info-value" id="z_position">0.000</div>
-      </div>
-    </div>
-  </div>
-  
-  <div class="panel">
-    <h3>Work Coordinate System</h3>
-    
-    <div class="coordinate_display">
-      <div></div>
-      <div style="text-align: center; font-weight: bold;">X</div>
-      <div style="text-align: center; font-weight: bold;">Y</div>
-      <div style="text-align: center; font-weight: bold;">Z</div>
-      
-      <div class="coordinate_label">MPos:</div>
-      <div class="coordinate_value machine_coords" id="machine_x_position">0.000</div>
-      <div class="coordinate_value machine_coords" id="machine_y_position">0.000</div>
-      <div class="coordinate_value machine_coords" id="machine_z_position">0.000</div>
-      
-      <div class="coordinate_label">WPos:</div>
-      <div class="coordinate_value work_coords" id="work_x_position">0.000</div>
-      <div class="coordinate_value work_coords" id="work_y_position">0.000</div>
-      <div class="coordinate_value work_coords" id="work_z_position">0.000</div>
-    </div>
-    
-    <div>
-      <h4>Set Zero:</h4>
-      <div class="zero_controls">
-        <button id="zero_all_button">All 0</button>
-        <button id="zero_x_button">X0</button>
-        <button id="zero_y_button">Y0</button>
-        <button id="zero_z_button">Z0</button>
-        <button id="zero_xy_button">X0Y0</button>
+  <div class="main_container">
+    <div class="header_panel">
+      <h2 style="margin: 0 0 4px 0; font-size: 14px;">CNC Panel - Genmitsu 3030 ProVer Max</h2>
+      <div class="status">
+        <div class="status-indicator" id="status_indicator"></div>
+        <span id="status_text" style="font-size: 11px;">Disconnected</span>
+        <span style="margin-left: 8px; font-weight: bold; font-size: 11px;">State: <span id="machine_state">Unknown</span></span>
+        <button id="connect_button">Connect</button>
+        <button id="disconnect_button" disabled>Disconnect</button>
+        <button id="status_button" disabled>Status</button>
+        <button id="toggle_log_button">Show Log</button>
       </div>
     </div>
     
-    <div>
-      <h4>Navigation:</h4>
-      <div class="navigation_controls">
-        <button id="go_work_zero_button">Go X0Y0</button>
-        <button id="go_machine_zero_button">Go Machine X0Y0</button>
-      </div>
-    </div>
-  </div>
-  
-  <div class="panel">
-    <h3>Communication Log</h3>
-    <button id="copy_log_button">Copy Log</button>
-    <div class="log" id="communication_log"></div>
-  </div>
-  
-  <div class="panel">
-    <h3>Manual Controls</h3>
-    
-    <div class="step_size_controls">
-      <label for="step_size_input">Step Size:</label>
-      <input type="number" id="step_size_input" class="step_size_input" value="1" min="0.1" max="100" step="0.1">
-      <span>mm</span>
-      <button id="step_01_button">0.1</button>
-      <button id="step_1_button">1</button>
-      <button id="step_10_button">10</button>
-    </div>
-    
-    <div class="jog_controls">
-      <div>
-        <h4>X/Y Axis</h4>
-        <div class="jog_buttons">
+    <div class="left_panel">
+      <div class="compact_panel">
+        <h3 style="margin: 0 0 4px 0; font-size: 12px;">Machine Coordinates</h3>
+        
+        <div class="coordinate_display">
           <div></div>
-          <button id="jog_y_plus_button" class="jog_button">Y+</button>
-          <div></div>
-          <button id="jog_x_minus_button" class="jog_button">X-</button>
-          <div></div>
-          <button id="jog_x_plus_button" class="jog_button">X+</button>
-          <div></div>
-          <button id="jog_y_minus_button" class="jog_button">Y-</button>
-          <div></div>
+          <div style="text-align: center; font-weight: bold; font-size: 9px;">X</div>
+          <div style="text-align: center; font-weight: bold; font-size: 9px;">Y</div>
+          <div style="text-align: center; font-weight: bold; font-size: 9px;">Z</div>
+          
+          <div class="coordinate_label" style="font-size: 8px;">MPos:</div>
+          <div class="coordinate_value machine_coords" id="machine_x_position">0.000</div>
+          <div class="coordinate_value machine_coords" id="machine_y_position">0.000</div>
+          <div class="coordinate_value machine_coords" id="machine_z_position">0.000</div>
+          
+          <div class="coordinate_label" style="font-size: 8px;">WPos:</div>
+          <div class="coordinate_value work_coords" id="work_x_position">0.000</div>
+          <div class="coordinate_value work_coords" id="work_y_position">0.000</div>
+          <div class="coordinate_value work_coords" id="work_z_position">0.000</div>
         </div>
       </div>
       
-      <div>
-        <h4>Z Axis</h4>
-        <div class="jog_buttons">
-          <div></div>
-          <button id="jog_z_plus_button" class="jog_button">Z+</button>
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-          <div></div>
-          <button id="jog_z_minus_button" class="jog_button">Z-</button>
-          <div></div>
+      <div class="compact_panel">
+        <h4 style="margin: 0 0 4px 0; font-size: 10px;">Work Coordinate Controls</h4>
+        <div style="display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 4px;">
+          <button id="zero_all_button" style="font-size: 9px; padding: 4px 6px;">All 0</button>
+          <button id="zero_x_button" style="font-size: 9px; padding: 4px 6px;">X0</button>
+          <button id="zero_y_button" style="font-size: 9px; padding: 4px 6px;">Y0</button>
+          <button id="zero_z_button" style="font-size: 9px; padding: 4px 6px;">Z0</button>
+          <button id="zero_xy_button" style="font-size: 9px; padding: 4px 6px;">X0Y0</button>
+        </div>
+        <div style="display: flex; gap: 2px; flex-wrap: wrap;">
+          <button id="go_work_zero_button" style="font-size: 9px; padding: 4px 6px;">Go X0Y0</button>
+          <button id="go_machine_zero_button" style="font-size: 9px; padding: 4px 6px;">Go Machine X0Y0</button>
         </div>
       </div>
       
-      <div>
-        <h4>Homing</h4>
-        <button id="home_all_button">Home All</button>
-        <button id="home_x_button">Home X</button>
-        <button id="home_y_button">Home Y</button>
-        <button id="home_z_button">Home Z</button>
+      <div class="compact_panel" id="log_panel" style="flex: 1; min-height: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <h4 style="margin: 0; font-size: 10px;">Communication Log</h4>
+          <button id="copy_log_button" style="font-size: 8px; padding: 2px 4px;">Copy</button>
+        </div>
+        <div class="log" id="communication_log" style="height: 80px;"></div>
       </div>
     </div>
+    
+    <div class="right_panel">
+      <div class="panel">
+        <h3 style="margin: 0 0 6px 0; font-size: 12px;">Manual Controls</h3>
+        
+        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 6px;">
+          <label for="step_size_input" style="font-size: 10px;">Step:</label>
+          <input type="number" id="step_size_input" class="step_size_input" value="1" min="0.1" max="100" step="0.1" style="width: 50px; padding: 2px; border: 1px solid #ccc; border-radius: 4px; font-size: 9px;">
+          <span style="font-size: 9px;">mm</span>
+          <button id="step_01_button" style="padding: 2px 4px; font-size: 8px;">0.1</button>
+          <button id="step_1_button" style="padding: 2px 4px; font-size: 8px;">1</button>
+          <button id="step_10_button" style="padding: 2px 4px; font-size: 8px;">10</button>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: start;">
+          <div>
+            <h4 style="margin: 0 0 4px 0; font-size: 10px; text-align: center;">X/Y Axis</h4>
+            <div class="jog_buttons">
+              <div></div>
+              <button id="jog_y_plus_button" class="jog_button">Y+</button>
+              <div></div>
+              <button id="jog_x_minus_button" class="jog_button">X-</button>
+              <div></div>
+              <button id="jog_x_plus_button" class="jog_button">X+</button>
+              <div></div>
+              <button id="jog_y_minus_button" class="jog_button">Y-</button>
+              <div></div>
+            </div>
+          </div>
+          
+          <div>
+            <h4 style="margin: 0 0 4px 0; font-size: 10px; text-align: center;">Z Axis</h4>
+            <div class="jog_buttons">
+              <div></div>
+              <button id="jog_z_plus_button" class="jog_button">Z+</button>
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
+              <div></div>
+              <button id="jog_z_minus_button" class="jog_button">Z-</button>
+              <div></div>
+            </div>
+          </div>
+          
+          <div>
+            <h4 style="margin: 0 0 4px 0; font-size: 10px; text-align: center;">Homing</h4>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <button id="home_all_button" style="font-size: 9px; padding: 4px;">Home All</button>
+              <button id="home_x_button" style="font-size: 9px; padding: 4px;">Home X</button>
+              <button id="home_y_button" style="font-size: 9px; padding: 4px;">Home Y</button>
+              <button id="home_z_button" style="font-size: 9px; padding: 4px;">Home Z</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="error_container" style="grid-column: 1 / -1; min-height: 0;"></div>
   </div>
-  
-  <div id="error_container"></div>
 
   <script src="cnc-serial.js"></script>
 </body>
