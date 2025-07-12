@@ -1,141 +1,86 @@
 # CNC Panel
 
-A progressive web application for controlling the Genmitsu 3030 ProVer max CNC machine using the Web Serial API.
+A web-based control panel for the Genmitsu 3030 ProVer Max CNC machine using the Web Serial API.
 
 ## Features
 
-- Framework-free HTML/JavaScript implementation
-- Direct serial communication via Web Serial API
-- Real-time status monitoring with activity-based updates
-- **Advanced manual jog controls** with tap/hold functionality:
-  - **Tap**: Precise stepped movement using configurable step sizes (0.1mm, 1mm, 10mm)
-  - **Hold**: Continuous jogging until button release
-- Homing operations (all axes or individual axes)
-- Work coordinate system (G54) zero setting with individual and combined axis controls
-- Enhanced position display showing both machine (MPos) and work (WPos) coordinates
-- Safe navigation to work and machine coordinates (preserving Z height)
-- Auto-connection to previously paired USB devices
-- Connection management with comprehensive error handling
-- Communication log with copy functionality
-- Connection status indicator
-- Command tracking to distinguish internal vs external activity
+- **Direct USB Connection**: No additional software required - connects directly to CNC via Web Serial API
+- **Auto-Connect**: Automatically reconnects to previously paired CNC on page load
+- **Advanced Jogging**: Tap for precise steps, hold for continuous movement (0.1mm, 1mm, 10mm steps)
+- **Work Coordinate System**: Set and navigate work zero points with real-time position display
+- **Touch-Friendly**: Works on touch enabled devices
+- **Real-Time Monitoring**: Live position updates and activity detection
 
-## Getting Started
+## Quick Start
 
-### Prerequisites
+### Running
+1. Start local web server
+```bash
+python3 server.py
+```
+2. open http://localhost:8080 in chrome browser
+3. Click "Connect to CNC" and select your CNC's USB port
+<br/>
+Panel will auto-connect on future visits
 
-- Chrome or Edge browser (Web Serial API support required)
-- Genmitsu 3030 ProVer max CNC with USB connection
-- Python 3 (for web server option)
-- Both computers on the same network (for remote access)
 
-### Running the Application
+## Interface Guide
 
-#### Option 1: Local File (Direct)
-1. Open `index.html` in Chrome or Edge browser
-2. Click "Connect to CNC" button
-3. Select your CNC's serial port when prompted
-4. The application will connect and display real-time status
+### Connection Panel
+- **Auto-connects** to previously paired CNC on page load
+- **Status indicator** shows connection state
+- **Communication log** displays all commands and responses
 
-#### Option 2: Web Server (Recommended for Remote Access)
-1. **On the computer connected to the CNC:**
-   ```bash
-   # Start the web server
-   python3 server.py
-   # Or use the convenience script
-   ./start-server.sh
-   ```
-   
-2. **From any computer on the same network:**
-   - Open Chrome or Edge browser
-   - Navigate to `http://[CNC-COMPUTER-IP]:8080`
-   - The server will display the IP address when it starts
-   
-3. **Connect to CNC:**
-   - Click "Connect to CNC" button
-   - Select your CNC's serial port when prompted
-   - The application will connect and display real-time status
+### Manual Controls
+- **Tap jog buttons**: Move by step size (0.1, 1, or 10mm)
+- **Hold jog buttons**: Continuous movement until released
+- **Step size buttons**: Quick-set common distances
+- **Home buttons**: Move to limit switches (requires limit switches)
 
-**Note:** The Web Serial API only works when the browser is running on the same computer as the CNC. The web server allows you to access the interface remotely, but the serial connection must be made from the computer physically connected to the CNC.
+### Work Coordinate System
+- **MPos**: Machine coordinates (absolute position)
+- **WPos**: Work coordinates (relative to your workpiece zero)
+- **Set Zero buttons**: Define current position as zero point
+- **Navigation buttons**: Move to saved zero positions
 
-## IMPORTANT: Web Serial API Limitations
+### Safety
+- **Hardware E-Stop Required**: Software relies on your CNC's physical emergency stop
+- **Limit Switch Support**: Homing operations require properly wired limit switches
+- **Error Messages**: Clear feedback for troubleshooting
 
-The Web Serial API has strict security requirements:
+## Controls Reference
 
-1. **Must run on the same computer as the CNC** - The browser must be running on the computer that has the CNC connected via USB
-2. **Requires secure context** - Must use HTTPS or localhost
-3. **Chrome/Edge only** - Firefox and Safari don't support Web Serial API yet
-
-### Recommended Setup for Remote Access
-
-If you want to control the CNC from a different computer, you have two options:
-
-#### Option A: Run Browser on CNC Computer
-1. Start the web server on any computer: `python3 server.py`
-2. Open Chrome/Edge **on the computer connected to the CNC**
-3. Navigate to `http://localhost:8080` (or the server's IP)
-4. Connect to the CNC via Web Serial API
-
-#### Option B: Use VNC/Remote Desktop
-1. Use VNC or Remote Desktop to connect to the CNC computer
-2. Open Chrome/Edge through the remote session
-3. Access the web interface locally on the CNC computer
-
-### Current Features
-
-- **Connection Management**: 
-  - Auto-connect to previously paired USB devices
-  - Connect/disconnect to CNC via USB with detailed error handling
-- **Status Monitoring**: Real-time machine state and position display with high-frequency updates during jogging (20Hz)
-- **Advanced Manual Controls**: 
-  - **Tap jogging**: Quick press for precise stepped movement
-  - **Hold jogging**: Continuous movement while button is held down
-  - Configurable step sizes (0.1mm, 1mm, 10mm)
-  - Touch-friendly interface for mobile/tablet use
-- **Homing**: Home all axes or individual axes ($H commands)
-- **Work Coordinate System**: Set work zero points (G54) for X, Y, Z individually or combined (X0Y0) - no confirmation required
-- **Position Display**: Shows both machine coordinates (MPos) and work coordinates (WPos) in real-time with automatic WCO calculation
-- **Safe Navigation**: Move to work zero or machine zero while preserving Z height
-- **Communication Log**: View all commands sent and responses received with copy functionality
-- **Activity Detection**: Automatic status updates when external jogging is detected (built-in controller) with 2-second settling time
-- **Error Handling**: Clear error messages for troubleshooting and connection issues
-
-**Note**: This software relies on the hardware emergency stop button on your CNC machine for safety. Always ensure your hardware e-stop is functional before operation.
-
-### Browser Compatibility
-
-This application requires the Web Serial API, which is currently supported in:
-- Chrome 89+
-- Edge 89+
-- Other Chromium-based browsers
+| Action | Method |
+|--------|--------|
+| Connect to CNC | Click "Connect to CNC" (first time only) |
+| Jog precisely | Tap jog buttons |
+| Jog continuously | Hold jog buttons |
+| Set work zero | Position tool, click zero buttons |
+| Go to work zero | Click "Go X0Y0" |
+| Home machine | Click "Home All" or individual axis |
+| Copy debug log | Click "Copy Log" |
+| Check settings | Press 'S' key while connected |
 
 ## Technical Details
 
-- **Communication Protocol**: Grbl firmware commands
+- **Framework**: Vanilla HTML/CSS/JavaScript
+- **Communication**: Direct Web Serial API to USB
+- **Protocol**: Grbl firmware commands
 - **Baud Rate**: 115200
-- **Status Updates**: Real-time via `?` status requests
-- **Position Display**: Work coordinates (WPos)
+- **Update Rate**: 20Hz during movement, 2-second settling
+- **Coordinates**: G54 work coordinate system
 
-## Development
+## Troubleshooting
 
-The application consists of:
-- `index.html` - Main interface
-- `cnc-serial.js` - Web Serial API implementation
-- `server.py` - Simple HTTP server for remote access
-- `start-server.sh` - Linux/Mac server startup script
-- `start-server.bat` - Windows server startup script
-- Framework-free vanilla JavaScript
+**Connection Issues:**
+- Ensure Chrome/Edge browser on CNC computer
+- Check USB cable connection
+- Try refreshing page and reconnecting
 
-### Server Details
-- Default port: 8080
-- Custom port: `python3 server.py [port]`
-- CORS enabled for cross-origin requests
-- Serves static files from project directory
+**Movement Issues:**
+- Check machine state in status panel
+- Ensure not in alarm state
+- Verify step size setting
 
-## Next Steps
+**Safety Reminder**: Always ensure your CNC's hardware emergency stop is functional and easily accessible during operation.
 
-- Implement feed rate and spindle speed overrides  
-- Add G-code file loading and execution
-- Create probing workflows for tool length and workpiece measurement
-- Add spindle control (start/stop with speed control)
-- Implement panel mode for kiosk usage
