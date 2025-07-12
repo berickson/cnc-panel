@@ -33,7 +33,7 @@
       grid-column: 1 / -1;
       background: white;
       border-radius: 4px;
-      padding: 4px 6px;
+      padding: 6px 8px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     
@@ -89,12 +89,12 @@
       background-color: #007bff;
       color: white;
       border: none;
-      padding: 6px 8px;
+      padding: 8px 12px;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 10px;
+      font-size: 12px;
       margin-right: 4px;
-      min-height: 28px;
+      min-height: 36px;
       touch-action: manipulation;
       user-select: none;
     }
@@ -126,12 +126,12 @@
     .info-label {
       font-weight: bold;
       color: #495057;
-      font-size: 10px;
+      font-size: 12px;
       text-transform: uppercase;
     }
     
     .info-value {
-      font-size: 14px;
+      font-size: 16px;
       color: #212529;
       margin-top: 2px;
       font-family: monospace;
@@ -143,7 +143,7 @@
       padding: 8px;
       border-radius: 4px;
       font-family: monospace;
-      font-size: 10px;
+      font-size: 11px;
       height: 120px;
       overflow-y: auto;
       white-space: pre-wrap;
@@ -199,10 +199,10 @@
     }
     
     .jog_button {
-      width: 32px;
-      height: 32px;
+      width: 40px;
+      height: 40px;
       padding: 0;
-      font-size: 10px;
+      font-size: 12px;
       font-weight: bold;
       user-select: none;
       -webkit-user-select: none;
@@ -233,11 +233,11 @@
     .coordinate_display {
       display: grid;
       grid-template-columns: auto 1fr 1fr 1fr;
-      gap: 4px;
+      gap: 6px;
       align-items: center;
-      margin: 4px 0;
+      margin: 6px 0;
       font-family: monospace;
-      font-size: 10px;
+      font-size: 12px;
     }
     
     .coordinate_label {
@@ -247,11 +247,11 @@
     
     .coordinate_value {
       background-color: #f8f9fa;
-      padding: 2px;
+      padding: 4px;
       border-radius: 4px;
       text-align: center;
       border: 2px solid transparent;
-      font-size: 9px;
+      font-size: 11px;
     }
     
     .machine_coords {
@@ -280,11 +280,11 @@
 <body>
   <div class="main_container">
     <div class="header_panel">
-      <h2 style="margin: 0 0 4px 0; font-size: 14px;">CNC Panel - Genmitsu 3030 ProVer Max</h2>
+      <h2 style="margin: 0 0 6px 0; font-size: 16px;">CNC Panel - Genmitsu 3030 ProVer Max</h2>
       <div class="status">
         <div class="status-indicator" id="status_indicator"></div>
-        <span id="status_text" style="font-size: 11px;">Disconnected</span>
-        <span style="margin-left: 8px; font-weight: bold; font-size: 11px;">State: <span id="machine_state">Unknown</span></span>
+        <span id="status_text" style="font-size: 13px;">Disconnected</span>
+        <span style="margin-left: 8px; font-weight: bold; font-size: 13px;">State: <span id="machine_state">Unknown</span></span>
         <button id="connect_button">Connect</button>
         <button id="disconnect_button" disabled>Disconnect</button>
         <button id="status_button" disabled>Status</button>
@@ -294,20 +294,20 @@
     
     <div class="left_panel">
       <div class="compact_panel">
-        <h3 style="margin: 0 0 4px 0; font-size: 12px;">Machine Coordinates</h3>
+        <h3 style="margin: 0 0 6px 0; font-size: 14px;">Machine Coordinates</h3>
         
         <div class="coordinate_display">
           <div></div>
-          <div style="text-align: center; font-weight: bold; font-size: 9px;">X</div>
-          <div style="text-align: center; font-weight: bold; font-size: 9px;">Y</div>
-          <div style="text-align: center; font-weight: bold; font-size: 9px;">Z</div>
+          <div style="text-align: center; font-weight: bold; font-size: 12px;">X</div>
+          <div style="text-align: center; font-weight: bold; font-size: 12px;">Y</div>
+          <div style="text-align: center; font-weight: bold; font-size: 12px;">Z</div>
           
-          <div class="coordinate_label" style="font-size: 8px;">MPos:</div>
+          <div class="coordinate_label" style="font-size: 11px;">MPos:</div>
           <div class="coordinate_value machine_coords" id="machine_x_position">0.000</div>
           <div class="coordinate_value machine_coords" id="machine_y_position">0.000</div>
           <div class="coordinate_value machine_coords" id="machine_z_position">0.000</div>
           
-          <div class="coordinate_label" style="font-size: 8px;">WPos:</div>
+          <div class="coordinate_label" style="font-size: 11px;">WPos:</div>
           <div class="coordinate_value work_coords" id="work_x_position">0.000</div>
           <div class="coordinate_value work_coords" id="work_y_position">0.000</div>
           <div class="coordinate_value work_coords" id="work_z_position">0.000</div>
@@ -315,24 +315,24 @@
       </div>
       
       <div class="compact_panel">
-        <h4 style="margin: 0 0 4px 0; font-size: 10px;">Work Coordinate Controls</h4>
-        <div style="display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 4px;">
-          <button id="zero_all_button" style="font-size: 9px; padding: 4px 6px;">All 0</button>
-          <button id="zero_x_button" style="font-size: 9px; padding: 4px 6px;">X0</button>
-          <button id="zero_y_button" style="font-size: 9px; padding: 4px 6px;">Y0</button>
-          <button id="zero_z_button" style="font-size: 9px; padding: 4px 6px;">Z0</button>
-          <button id="zero_xy_button" style="font-size: 9px; padding: 4px 6px;">X0Y0</button>
+        <h4 style="margin: 0 0 6px 0; font-size: 12px;">Work Coordinate Controls</h4>
+        <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px;">
+          <button id="zero_all_button" style="font-size: 10px; padding: 6px 8px;">All 0</button>
+          <button id="zero_x_button" style="font-size: 10px; padding: 6px 8px;">X0</button>
+          <button id="zero_y_button" style="font-size: 10px; padding: 6px 8px;">Y0</button>
+          <button id="zero_z_button" style="font-size: 10px; padding: 6px 8px;">Z0</button>
+          <button id="zero_xy_button" style="font-size: 10px; padding: 6px 8px;">X0Y0</button>
         </div>
-        <div style="display: flex; gap: 2px; flex-wrap: wrap;">
-          <button id="go_work_zero_button" style="font-size: 9px; padding: 4px 6px;">Go X0Y0</button>
-          <button id="go_machine_zero_button" style="font-size: 9px; padding: 4px 6px;">Go Machine X0Y0</button>
+        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+          <button id="go_work_zero_button" style="font-size: 10px; padding: 6px 8px;">Go X0Y0</button>
+          <button id="go_machine_zero_button" style="font-size: 10px; padding: 6px 8px;">Go Machine X0Y0</button>
         </div>
       </div>
       
       <div class="compact_panel" id="log_panel" style="flex: 1; min-height: 0;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-          <h4 style="margin: 0; font-size: 10px;">Communication Log</h4>
-          <button id="copy_log_button" style="font-size: 8px; padding: 2px 4px;">Copy</button>
+          <h4 style="margin: 0; font-size: 12px;">Communication Log</h4>
+          <button id="copy_log_button" style="font-size: 10px; padding: 4px 6px;">Copy</button>
         </div>
         <div class="log" id="communication_log" style="height: 80px;"></div>
       </div>
@@ -340,20 +340,20 @@
     
     <div class="right_panel">
       <div class="panel">
-        <h3 style="margin: 0 0 6px 0; font-size: 12px;">Manual Controls</h3>
+        <h3 style="margin: 0 0 8px 0; font-size: 14px;">Manual Controls</h3>
         
-        <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 6px;">
-          <label for="step_size_input" style="font-size: 10px;">Step:</label>
-          <input type="number" id="step_size_input" class="step_size_input" value="1" min="0.1" max="100" step="0.1" style="width: 50px; padding: 2px; border: 1px solid #ccc; border-radius: 4px; font-size: 9px;">
-          <span style="font-size: 9px;">mm</span>
-          <button id="step_01_button" style="padding: 2px 4px; font-size: 8px;">0.1</button>
-          <button id="step_1_button" style="padding: 2px 4px; font-size: 8px;">1</button>
-          <button id="step_10_button" style="padding: 2px 4px; font-size: 8px;">10</button>
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+          <label for="step_size_input" style="font-size: 12px;">Step:</label>
+          <input type="number" id="step_size_input" class="step_size_input" value="1" min="0.1" max="100" step="0.1" style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px;">
+          <span style="font-size: 11px;">mm</span>
+          <button id="step_01_button" style="padding: 4px 6px; font-size: 10px;">0.1</button>
+          <button id="step_1_button" style="padding: 4px 6px; font-size: 10px;">1</button>
+          <button id="step_10_button" style="padding: 4px 6px; font-size: 10px;">10</button>
         </div>
         
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: start;">
           <div>
-            <h4 style="margin: 0 0 4px 0; font-size: 10px; text-align: center;">X/Y Axis</h4>
+            <h4 style="margin: 0 0 6px 0; font-size: 12px; text-align: center;">X/Y Axis</h4>
             <div class="jog_buttons">
               <div></div>
               <button id="jog_y_plus_button" class="jog_button">Y+</button>
@@ -368,7 +368,7 @@
           </div>
           
           <div>
-            <h4 style="margin: 0 0 4px 0; font-size: 10px; text-align: center;">Z Axis</h4>
+            <h4 style="margin: 0 0 6px 0; font-size: 12px; text-align: center;">Z Axis</h4>
             <div class="jog_buttons">
               <div></div>
               <button id="jog_z_plus_button" class="jog_button">Z+</button>
@@ -383,12 +383,12 @@
           </div>
           
           <div>
-            <h4 style="margin: 0 0 4px 0; font-size: 10px; text-align: center;">Homing</h4>
-            <div style="display: flex; flex-direction: column; gap: 2px;">
-              <button id="home_all_button" style="font-size: 9px; padding: 4px;">Home All</button>
-              <button id="home_x_button" style="font-size: 9px; padding: 4px;">Home X</button>
-              <button id="home_y_button" style="font-size: 9px; padding: 4px;">Home Y</button>
-              <button id="home_z_button" style="font-size: 9px; padding: 4px;">Home Z</button>
+            <h4 style="margin: 0 0 6px 0; font-size: 12px; text-align: center;">Homing</h4>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <button id="home_all_button" style="font-size: 10px; padding: 6px;">Home All</button>
+              <button id="home_x_button" style="font-size: 10px; padding: 6px;">Home X</button>
+              <button id="home_y_button" style="font-size: 10px; padding: 6px;">Home Y</button>
+              <button id="home_z_button" style="font-size: 10px; padding: 6px;">Home Z</button>
             </div>
           </div>
         </div>
