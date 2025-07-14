@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CNC Panel</title>
+  
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="assets/robonerd-robot-logo-light.svg" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/svg+xml" href="assets/robonerd-robot-logo-dark.svg" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/svg+xml" href="assets/robonerd-robot-logo-light.svg">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -328,6 +333,34 @@
         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
           <button id="go_work_zero_button" style="font-size: 12px; padding: 6px 8px;">Go X0Y0</button>
           <button id="go_machine_zero_button" style="font-size: 12px; padding: 6px 8px;">Go Machine X0Y0</button>
+        </div>
+      </div>
+      
+      <div class="compact_panel">
+        <h4 style="margin: 0 0 6px 0; font-size: 12px;">XY Position Presets</h4>
+        <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px;">
+          <input type="text" id="preset_name_input" placeholder="Position name" style="font-size: 12px; padding: 4px; flex: 1; min-width: 100px;">
+          <button id="save_xy_preset_button" style="font-size: 12px; padding: 4px 8px;">Save XY</button>
+        </div>
+        <div id="xy_presets_list" style="display: flex; gap: 4px; flex-wrap: wrap; flex-direction: column;">
+          <!-- Dynamic XY preset buttons will be added here -->
+        </div>
+      </div>
+
+      <div id="tool_change_warning" style="display: none; background: #ffeb3b; color: #e65100; padding: 8px; margin: 4px 0; border-radius: 4px; font-size: 12px; text-align: center;">
+        ⚠️ Z offset unknown - probe or set Z before running jobs
+      </div>
+
+      <div class="compact_panel">
+        <h4 style="margin: 0 0 6px 0; font-size: 12px;">Z Setup & Tool Change</h4>
+        <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px;">
+          <button id="probe_z_button" style="font-size: 12px; padding: 6px 8px;">Probe Z</button>
+          <button id="tool_change_button" style="font-size: 12px; padding: 6px 8px;">Tool Change</button>
+        </div>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <label style="font-size: 12px;">Feed:</label>
+          <input type="number" id="probe_feed_input" value="50" min="10" max="200" style="width: 60px; padding: 4px; font-size: 12px;">
+          <span style="font-size: 12px;">mm/min</span>
         </div>
       </div>
       

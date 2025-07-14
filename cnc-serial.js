@@ -23,6 +23,12 @@ class CNCSerial {
     this.is_homing = false; // Track if we initiated homing
     this.homing_start_time = 0; // When homing started
     
+    // Work coordinate management
+    this.saved_xy_coordinates = this.load_saved_xy_coordinates();
+    this.z_offset_valid = false; // Track if Z offset is reliable
+    this.last_tool_change_time = null;
+    this.tool_change_position = { x: -10, y: -10, z: 5 }; // Safe position for tool changes
+    
     // UI elements
     this.connect_button = document.getElementById('connect_button');
     this.disconnect_button = document.getElementById('disconnect_button');
@@ -71,6 +77,15 @@ class CNCSerial {
     
     // Status elements
     this.machine_state = document.getElementById('machine_state');
+    
+    // Work coordinate management elements
+    this.preset_name_input = document.getElementById('preset_name_input');
+    this.save_xy_preset_button = document.getElementById('save_xy_preset_button');
+    this.xy_presets_list = document.getElementById('xy_presets_list');
+    this.probe_z_button = document.getElementById('probe_z_button');
+    this.tool_change_button = document.getElementById('tool_change_button');
+    this.probe_feed_input = document.getElementById('probe_feed_input');
+    this.tool_change_warning = document.getElementById('tool_change_warning');
     
     // Log initialization info
     this.log(`CNC Panel initialized`);
@@ -164,6 +179,30 @@ class CNCSerial {
     this.zero_xy_button.addEventListener('click', () => this.zero_xy());
     this.go_work_zero_button.addEventListener('click', () => this.go_work_zero());
     this.go_machine_zero_button.addEventListener('click', () => this.go_machine_zero());
+    
+    // Work coordinate management events
+    if (this.save_xy_preset_button) {
+      this.save_xy_preset_button.addEventListener('click', () => {
+        const name = this.preset_name_input.value.trim();
+        if (name) {
+          this.save_current_xy_position(name);
+          this.preset_name_input.value = '';
+        }
+      });
+    }
+    
+    if (this.probe_z_button) {
+      this.probe_z_button.addEventListener('click', () => {
+        const feed_rate = parseInt(this.probe_feed_input.value) || 50;
+        this.probe_z_surface(feed_rate);
+      });
+    }
+    
+    if (this.tool_change_button) {
+      this.tool_change_button.addEventListener('click', () => {
+        this.goto_tool_change_position();
+      });
+    }
   }
   
   setup_jog_button(button, axis, direction) {
@@ -671,8 +710,166 @@ class CNCSerial {
     }
   }
 
-  // ...existing code...
+  // Work coordinate management methods
+  load_saved_xy_coordinates() {
+    try {
+      const saved = localStorage.getItem('cnc_xy_coordinates');
+      return saved ? JSON.parse(saved) : {};
+    } catch (error) {
+      this.log('Failed to load saved XY coordinates');
+      return {};
+    }
+  }
   
+  save_xy_coordinates() {
+    try {
+      localStorage.setItem('cnc_xy_coordinates', JSON.stringify(this.saved_xy_coordinates));
+      this.log('XY coordinates saved');
+    } catch (error) {
+      this.log('Failed to save XY coordinates');
+    }
+  }
+  
+  async save_current_xy_position(name) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    // Get current work XY position only
+    const xy_pos = {
+      x: parseFloat(this.work_x_position.textContent),
+      y: parseFloat(this.work_y_position.textContent)
+    };
+    
+    this.saved_xy_coordinates[name] = {
+      ...xy_pos,
+      timestamp: new Date().toISOString()
+    };
+    
+    this.save_xy_coordinates();
+    this.log(`Saved XY position "${name}": X${xy_pos.x} Y${xy_pos.y}`);
+    this.update_xy_presets_ui();
+  }
+  
+  async goto_saved_xy_position(name) {
+    const coords = this.saved_xy_coordinates[name];
+    if (!coords) {
+      this.show_error(`XY position "${name}" not found`);
+      return;
+    }
+    
+    await this.send_command(`G0 X${coords.x} Y${coords.y}`);
+    this.log(`Moving to saved XY position "${name}": X${coords.x} Y${coords.y}`);
+  }
+  
+  async goto_tool_change_position() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    // Move Z up first for safety
+    await this.send_command(`G0 Z${this.tool_change_position.z}`);
+    await this.delay(500);
+    // Then move to X,Y position
+    await this.send_command(`G0 X${this.tool_change_position.x} Y${this.tool_change_position.y}`);
+    
+    // Mark Z offset as unknown after tool change
+    this.z_offset_valid = false;
+    this.last_tool_change_time = new Date();
+    this.update_z_offset_status();
+    
+    this.log('Moved to tool change position - Z offset now unknown');
+  }
+  
+  async probe_z_surface(probe_feed_rate = 50, probe_distance = -20) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Starting Z-axis surface probe...');
+    this.log('Ensure probe is connected and positioned above workpiece surface');
+    
+    // Send probe command - probe down until contact
+    await this.send_command(`G38.2 Z${probe_distance} F${probe_feed_rate}`);
+    
+    // After probe completes, set this position as Z0
+    await this.delay(1000);
+    await this.send_command('G10 L20 P1 Z0');
+    
+    // Mark Z offset as valid
+    this.z_offset_valid = true;
+    this.update_z_offset_status();
+    
+    this.log('Z-axis probed and set to zero - Z offset now valid');
+  }
+  
+  update_xy_presets_ui() {
+    if (!this.xy_presets_list) return;
+    
+    this.xy_presets_list.innerHTML = '';
+    
+    for (const [name, coords] of Object.entries(this.saved_xy_coordinates)) {
+      const button_container = document.createElement('div');
+      button_container.style.cssText = 'display: flex; gap: 2px; margin-bottom: 2px;';
+      
+      const goto_button = document.createElement('button');
+      goto_button.textContent = `${name} (X${coords.x} Y${coords.y})`;
+      goto_button.style.cssText = 'font-size: 12px; padding: 4px 6px; flex: 1;';
+      goto_button.addEventListener('click', () => this.goto_saved_xy_position(name));
+      
+      const delete_button = document.createElement('button');
+      delete_button.textContent = '×';
+      delete_button.style.cssText = 'font-size: 12px; padding: 4px 6px; background: #ff6b6b; color: white;';
+      delete_button.addEventListener('click', () => {
+        delete this.saved_xy_coordinates[name];
+        this.save_xy_coordinates();
+        this.update_xy_presets_ui();
+        this.log(`Deleted XY position "${name}"`);
+      });
+      
+      button_container.appendChild(goto_button);
+      button_container.appendChild(delete_button);
+      this.xy_presets_list.appendChild(button_container);
+    }
+  }
+  
+  update_z_offset_status() {
+    // Update tool change button appearance
+    if (this.tool_change_button) {
+      if (this.z_offset_valid) {
+        this.tool_change_button.style.backgroundColor = '';
+        this.tool_change_button.textContent = 'Tool Change';
+      } else {
+        this.tool_change_button.style.backgroundColor = '#ff9800';
+        this.tool_change_button.textContent = 'Tool Change ⚠️';
+      }
+    }
+
+    // Update Z position display
+    if (this.work_z_position) {
+      if (this.z_offset_valid) {
+        this.work_z_position.style.backgroundColor = '';
+        this.work_z_position.style.color = '';
+      } else {
+        this.work_z_position.style.backgroundColor = '#ffeb3b';
+        this.work_z_position.style.color = '#e65100';
+      }
+    }
+
+    // Show/hide warning message
+    if (this.tool_change_warning) {
+      if (this.z_offset_valid) {
+        this.tool_change_warning.style.display = 'none';
+      } else {
+        this.tool_change_warning.style.display = 'block';
+        this.tool_change_warning.textContent = '⚠️ Z offset unknown - probe or set Z before running jobs';
+      }
+    }
+  }
+
   parse_response(response) {
     const trimmed = response.trim();
     
@@ -936,6 +1133,13 @@ class CNCSerial {
       
       // Enable manual controls when connected
       this.enable_jog_controls(true);
+      
+      // Load and display XY presets
+      this.update_xy_presets_ui();
+      
+      // Initialize Z offset as unknown on connect
+      this.z_offset_valid = false;
+      this.update_z_offset_status();
     } else {
       this.status_indicator.classList.remove('connected');
       this.status_text.textContent = 'Disconnected';
@@ -1055,6 +1259,11 @@ class CNCSerial {
     
     this.log('Setting all axes to zero...');
     await this.send_command('G10 L20 P1 X0 Y0 Z0');
+    
+    // Mark Z offset as valid since we just set it
+    this.z_offset_valid = true;
+    this.update_z_offset_status();
+    this.log('Z offset now valid');
   }
   
   async zero_axis(axis) {
@@ -1065,6 +1274,13 @@ class CNCSerial {
     
     this.log(`Setting ${axis} axis to zero...`);
     await this.send_command(`G10 L20 P1 ${axis}0`);
+    
+    // If Z axis was zeroed, mark offset as valid
+    if (axis === 'Z') {
+      this.z_offset_valid = true;
+      this.update_z_offset_status();
+      this.log('Z offset now valid');
+    }
   }
   
   async zero_xy() {

@@ -7,11 +7,13 @@
 - [x] touch should not select text
 - [x] console is hidden by default, maybe show it with a button
 - [x] utilize full width
-[ ] Work coordinate management
-- [ ] Work coordinates persistence
-- [ ] work best when combined with home
-- [ ] probe
-- [ ] goto special x/y for tool change to make it easy to change tools
+[*] Work coordinate management
+- [ ] XY position presets with localStorage persistence
+- [ ] Z offset validity tracking (valid/unknown after tool changes)
+- [ ] Z surface probing functionality
+- [ ] Tool change position and workflow
+- [ ] Visual indicators for Z offset status
+- [ ] Integration with existing zero controls
 [ ] Load gcode files from disk and send to CNC
 - [ ] job progres
 [ ] Auto home and zero presets
