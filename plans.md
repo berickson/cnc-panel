@@ -7,6 +7,11 @@
 - [x] touch should not select text
 - [x] console is hidden by default, maybe show it with a button
 - [x] utilize full width
+[ ] Work coordinate management
+- [ ] Work coordinates persistence
+- [ ] work best when combined with home
+- [ ] probe
+- [ ] goto special x/y for tool change to make it easy to change tools
 [ ] Load gcode files from disk and send to CNC
 - [ ] job progres
 [ ] Auto home and zero presets
