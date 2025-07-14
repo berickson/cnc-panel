@@ -736,10 +736,10 @@ class CNCSerial {
       return;
     }
     
-    // Get current work XY position only
+    // Get current machine XY position only
     const xy_pos = {
-      x: parseFloat(this.work_x_position.textContent),
-      y: parseFloat(this.work_y_position.textContent)
+      x: parseFloat(this.machine_x_position.textContent),
+      y: parseFloat(this.machine_y_position.textContent)
     };
     
     this.saved_xy_coordinates[name] = {
@@ -748,7 +748,7 @@ class CNCSerial {
     };
     
     this.save_xy_coordinates();
-    this.log(`Saved XY position "${name}": X${xy_pos.x} Y${xy_pos.y}`);
+    this.log(`Saved machine XY position "${name}": X${xy_pos.x} Y${xy_pos.y}`);
     this.update_xy_presets_ui();
   }
   
@@ -759,8 +759,8 @@ class CNCSerial {
       return;
     }
     
-    await this.send_command(`G0 X${coords.x} Y${coords.y}`);
-    this.log(`Moving to saved XY position "${name}": X${coords.x} Y${coords.y}`);
+    await this.send_command(`G53 G0 X${coords.x} Y${coords.y}`);
+    this.log(`Moving to saved machine XY position "${name}": X${coords.x} Y${coords.y}`);
   }
   
   async goto_tool_change_position() {
@@ -816,7 +816,7 @@ class CNCSerial {
       button_container.style.cssText = 'display: flex; gap: 2px; margin-bottom: 2px;';
       
       const goto_button = document.createElement('button');
-      goto_button.textContent = `${name} (X${coords.x} Y${coords.y})`;
+      goto_button.textContent = `${name} (MPos X${coords.x} Y${coords.y})`;
       goto_button.style.cssText = 'font-size: 12px; padding: 4px 6px; flex: 1;';
       goto_button.addEventListener('click', () => this.goto_saved_xy_position(name));
       
@@ -827,7 +827,7 @@ class CNCSerial {
         delete this.saved_xy_coordinates[name];
         this.save_xy_coordinates();
         this.update_xy_presets_ui();
-        this.log(`Deleted XY position "${name}"`);
+        this.log(`Deleted machine XY position "${name}"`);
       });
       
       button_container.appendChild(goto_button);
