@@ -40,6 +40,7 @@
       border-radius: 4px;
       padding: 6px 8px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      position: relative;
     }
     
     .left_panel {
@@ -296,6 +297,9 @@
         <button id="clear_alarm_button" disabled>Clear Alarm</button>
         <button id="toggle_log_button">Show Log</button>
       </div>
+      <button id="fullscreen_toggle_button" style="position: absolute; right: 16px; top: 16px; width: 56px; height: 56px; background: #007bff; color: white; border: none; border-radius: 50%; font-size: 32px; display: flex; align-items: center; justify-content: center; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.15); cursor: pointer;">
+        <span id="fullscreen_icon">⛶</span>
+      </button>
     </div>
     
     <div class="left_panel">
@@ -339,8 +343,7 @@
       <div class="compact_panel">
         <h4 style="margin: 0 0 6px 0; font-size: 12px;">XY Position Presets</h4>
         <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px;">
-          <input type="text" id="preset_name_input" placeholder="Position name" style="font-size: 12px; padding: 4px; flex: 1; min-width: 100px;">
-          <button id="save_xy_preset_button" style="font-size: 12px; padding: 4px 8px;">Save XY</button>
+          <button id="save_xy_preset_button" style="font-size: 12px; padding: 6px 12px;">Save Current XY Position</button>
         </div>
         <div id="xy_presets_list" style="display: flex; gap: 4px; flex-wrap: wrap; flex-direction: column;">
           <!-- Dynamic XY preset buttons will be added here -->
@@ -424,5 +427,32 @@
   </div>
 
   <script src="cnc-serial.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var fullscreen_toggle_button = document.getElementById('fullscreen_toggle_button');
+      var fullscreen_icon = document.getElementById('fullscreen_icon');
+      fullscreen_toggle_button.addEventListener('click', function() {
+        // Only call requestFullscreen directly in the click handler
+        try {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+            fullscreen_icon.textContent = '🡽';
+          } else {
+            document.exitFullscreen();
+            fullscreen_icon.textContent = '⛶';
+          }
+        } catch (err) {
+          // Suppress permission errors
+        }
+      });
+      document.addEventListener('fullscreenchange', function() {
+        if (!document.fullscreenElement) {
+          fullscreen_icon.textContent = '⛶';
+        } else {
+          fullscreen_icon.textContent = '🡽';
+        }
+      });
+    });
+  </script>
 </body>
 </html>

@@ -79,13 +79,16 @@ class CNCSerial {
     this.machine_state = document.getElementById('machine_state');
     
     // Work coordinate management elements
-    this.preset_name_input = document.getElementById('preset_name_input');
     this.save_xy_preset_button = document.getElementById('save_xy_preset_button');
     this.xy_presets_list = document.getElementById('xy_presets_list');
     this.probe_z_button = document.getElementById('probe_z_button');
     this.tool_change_button = document.getElementById('tool_change_button');
     this.probe_feed_input = document.getElementById('probe_feed_input');
     this.tool_change_warning = document.getElementById('tool_change_warning');
+    
+    // Fullscreen elements
+    this.fullscreen_toggle_button = document.getElementById('fullscreen_toggle_button');
+    this.fullscreen_icon = document.getElementById('fullscreen_icon');
     
     // Log initialization info
     this.log(`CNC Panel initialized`);
@@ -183,11 +186,8 @@ class CNCSerial {
     // Work coordinate management events
     if (this.save_xy_preset_button) {
       this.save_xy_preset_button.addEventListener('click', () => {
-        const name = this.preset_name_input.value.trim();
-        if (name) {
-          this.save_current_xy_position(name);
-          this.preset_name_input.value = '';
-        }
+        // Always use auto-generated names since there's no text input
+        this.save_current_xy_position();
       });
     }
     
@@ -202,6 +202,10 @@ class CNCSerial {
       this.tool_change_button.addEventListener('click', () => {
         this.goto_tool_change_position();
       });
+    }
+    
+    if (this.fullscreen_toggle_button) {
+      this.fullscreen_toggle_button.addEventListener('click', () => this.toggle_fullscreen());
     }
   }
   
@@ -730,16 +734,31 @@ class CNCSerial {
     }
   }
   
-  async save_current_xy_position(name) {
+  async save_current_xy_position(name = null) {
     if (!this.is_connected) {
       this.show_error('Not connected to CNC');
       return;
     }
     
-    // Get current work XY position only
+    // Auto-generate name if not provided
+    if (!name) {
+      const existing_presets = Object.keys(this.saved_xy_coordinates);
+      let preset_number = 1;
+      let generated_name;
+      
+      // Find the next available preset number
+      do {
+        generated_name = `Preset ${preset_number}`;
+        preset_number++;
+      } while (existing_presets.includes(generated_name));
+      
+      name = generated_name;
+    }
+    
+    // Get current machine XY position only
     const xy_pos = {
-      x: parseFloat(this.work_x_position.textContent),
-      y: parseFloat(this.work_y_position.textContent)
+      x: parseFloat(this.machine_x_position.textContent),
+      y: parseFloat(this.machine_y_position.textContent)
     };
     
     this.saved_xy_coordinates[name] = {
@@ -748,7 +767,7 @@ class CNCSerial {
     };
     
     this.save_xy_coordinates();
-    this.log(`Saved XY position "${name}": X${xy_pos.x} Y${xy_pos.y}`);
+    this.log(`Saved machine XY position "${name}": X${xy_pos.x} Y${xy_pos.y}`);
     this.update_xy_presets_ui();
   }
   
@@ -759,8 +778,8 @@ class CNCSerial {
       return;
     }
     
-    await this.send_command(`G0 X${coords.x} Y${coords.y}`);
-    this.log(`Moving to saved XY position "${name}": X${coords.x} Y${coords.y}`);
+    await this.send_command(`G53 G0 X${coords.x} Y${coords.y}`);
+    this.log(`Moving to saved machine XY position "${name}": X${coords.x} Y${coords.y}`);
   }
   
   async goto_tool_change_position() {
@@ -810,27 +829,29 @@ class CNCSerial {
     this.xy_presets_list.innerHTML = '';
     
     for (const [name, coords] of Object.entries(this.saved_xy_coordinates)) {
+      const preset_container = document.createElement('div');
+      preset_container.style.cssText = 'margin-bottom: 2px;';
+      preset_container.dataset.presetName = name; // Store name for reference
+      
+      // Main button row
       const button_container = document.createElement('div');
-      button_container.style.cssText = 'display: flex; gap: 2px; margin-bottom: 2px;';
+      button_container.style.cssText = 'display: flex; gap: 2px;';
       
       const goto_button = document.createElement('button');
-      goto_button.textContent = `${name} (X${coords.x} Y${coords.y})`;
-      goto_button.style.cssText = 'font-size: 12px; padding: 4px 6px; flex: 1;';
+      goto_button.textContent = name;
+      goto_button.style.cssText = 'font-size: 12px; padding: 4px 6px; flex: 1; text-align: left;';
       goto_button.addEventListener('click', () => this.goto_saved_xy_position(name));
       
-      const delete_button = document.createElement('button');
-      delete_button.textContent = '×';
-      delete_button.style.cssText = 'font-size: 12px; padding: 4px 6px; background: #ff6b6b; color: white;';
-      delete_button.addEventListener('click', () => {
-        delete this.saved_xy_coordinates[name];
-        this.save_xy_coordinates();
-        this.update_xy_presets_ui();
-        this.log(`Deleted XY position "${name}"`);
-      });
+      const edit_button = document.createElement('button');
+      edit_button.textContent = '⚙';
+      edit_button.style.cssText = 'font-size: 12px; padding: 4px 6px; background: #6c757d; color: white;';
+      edit_button.addEventListener('click', () => this.toggle_preset_editor(name, preset_container));
       
       button_container.appendChild(goto_button);
-      button_container.appendChild(delete_button);
-      this.xy_presets_list.appendChild(button_container);
+      button_container.appendChild(edit_button);
+      preset_container.appendChild(button_container);
+      
+      this.xy_presets_list.appendChild(preset_container);
     }
   }
   
@@ -1385,9 +1406,191 @@ class CNCSerial {
       // Don't show error for auto-connect failure, just log it
     }
   }
+  
+  toggle_preset_editor(preset_name, preset_container) {
+    // Check if editor is already open
+    const existing_editor = preset_container.querySelector('.preset-editor');
+    if (existing_editor) {
+      existing_editor.remove();
+      return;
+    }
+    
+    const coords = this.saved_xy_coordinates[preset_name];
+    if (!coords) return;
+    
+    // Create editor panel
+    const editor = document.createElement('div');
+    editor.className = 'preset-editor';
+    editor.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px; margin-top: 2px; font-size: 11px;';
+    
+    // Name editing
+    const name_row = document.createElement('div');
+    name_row.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px; align-items: center;';
+    
+    const name_label = document.createElement('span');
+    name_label.textContent = 'Name:';
+    name_label.style.cssText = 'width: 40px; font-weight: bold;';
+    
+    const name_input = document.createElement('input');
+    name_input.type = 'text';
+    name_input.value = preset_name;
+    name_input.style.cssText = 'font-size: 11px; padding: 2px 4px; flex: 1; border: 1px solid #ccc; border-radius: 2px;';
+    
+    name_row.appendChild(name_label);
+    name_row.appendChild(name_input);
+    
+    // Coordinates display/editing
+    const coords_row = document.createElement('div');
+    coords_row.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px; align-items: center;';
+    
+    const coords_label = document.createElement('span');
+    coords_label.textContent = 'MPos:';
+    coords_label.style.cssText = 'width: 40px; font-weight: bold;';
+    
+    const x_input = document.createElement('input');
+    x_input.type = 'number';
+    x_input.step = '0.001';
+    x_input.value = coords.x;
+    x_input.style.cssText = 'font-size: 11px; padding: 2px 4px; width: 60px; border: 1px solid #ccc; border-radius: 2px;';
+    
+    const y_input = document.createElement('input');
+    y_input.type = 'number';
+    y_input.step = '0.001';
+    y_input.value = coords.y;
+    y_input.style.cssText = 'font-size: 11px; padding: 2px 4px; width: 60px; border: 1px solid #ccc; border-radius: 2px;';
+    
+    coords_row.appendChild(coords_label);
+    coords_row.appendChild(document.createTextNode('X:'));
+    coords_row.appendChild(x_input);
+    coords_row.appendChild(document.createTextNode('Y:'));
+    coords_row.appendChild(y_input);
+    
+    // Action buttons
+    const actions_row = document.createElement('div');
+    actions_row.style.cssText = 'display: flex; gap: 2px; justify-content: flex-end;';
+    
+    const save_button = document.createElement('button');
+    save_button.textContent = 'Save';
+    save_button.style.cssText = 'font-size: 11px; padding: 3px 8px; background: #28a745; color: white; border: none; border-radius: 2px;';
+    save_button.addEventListener('click', () => {
+      this.save_preset_changes(preset_name, name_input.value.trim(), parseFloat(x_input.value), parseFloat(y_input.value));
+      editor.remove();
+    });
+    
+    const delete_button = document.createElement('button');
+    delete_button.textContent = 'Delete';
+    delete_button.style.cssText = 'font-size: 11px; padding: 3px 8px; background: #dc3545; color: white; border: none; border-radius: 2px;';
+    delete_button.addEventListener('click', () => {
+      if (confirm(`Delete preset "${preset_name}"?`)) {
+        delete this.saved_xy_coordinates[preset_name];
+        this.save_xy_coordinates();
+        this.update_xy_presets_ui();
+        this.log(`Deleted machine XY position "${preset_name}"`);
+      }
+    });
+    
+    const cancel_button = document.createElement('button');
+    cancel_button.textContent = 'Cancel';
+    cancel_button.style.cssText = 'font-size: 11px; padding: 3px 8px; background: #6c757d; color: white; border: none; border-radius: 2px;';
+    cancel_button.addEventListener('click', () => {
+      editor.remove();
+    });
+    
+    actions_row.appendChild(save_button);
+    actions_row.appendChild(delete_button);
+    actions_row.appendChild(cancel_button);
+    
+    // Assemble editor
+    editor.appendChild(name_row);
+    editor.appendChild(coords_row);
+    editor.appendChild(actions_row);
+    
+    preset_container.appendChild(editor);
+    
+    // Focus name input for quick editing
+    name_input.focus();
+    name_input.select();
+  }
+  
+  save_preset_changes(old_name, new_name, new_x, new_y) {
+    // Validate inputs
+    if (!new_name) {
+      this.show_error('Preset name cannot be empty');
+      return;
+    }
+    
+    if (isNaN(new_x) || isNaN(new_y)) {
+      this.show_error('Invalid coordinates');
+      return;
+    }
+    
+    // Check for name conflicts (unless it's the same name)
+    if (new_name !== old_name && this.saved_xy_coordinates[new_name]) {
+      this.show_error(`Preset name "${new_name}" already exists`);
+      return;
+    }
+    
+    // Remove old preset if name changed
+    if (new_name !== old_name) {
+      delete this.saved_xy_coordinates[old_name];
+    }
+    
+    // Save updated preset
+    this.saved_xy_coordinates[new_name] = {
+      x: new_x,
+      y: new_y,
+      timestamp: new Date().toISOString()
+    };
+    
+    this.save_xy_coordinates();
+    this.update_xy_presets_ui();
+    
+    if (new_name !== old_name) {
+      this.log(`Renamed preset "${old_name}" to "${new_name}" and updated coordinates to X${new_x} Y${new_y}`);
+    } else {
+      this.log(`Updated preset "${new_name}" coordinates to X${new_x} Y${new_y}`);
+    }
+  }
+  
+  toggle_fullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      this.set_fullscreen_icon(true);
+    } else {
+      document.exitFullscreen();
+      this.set_fullscreen_icon(false);
+    }
+  }
+
+  set_fullscreen_icon(is_fullscreen) {
+    if (this.fullscreen_icon) {
+      this.fullscreen_icon.textContent = is_fullscreen ? '🡼' : '⛶';
+    }
+  }
+
 }
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
-  new CNCSerial();
+  const serial = new CNCSerial();
+  // Setup fullscreen button event listener here to ensure DOM is ready
+  const fullscreen_toggle_button = document.getElementById('fullscreen_toggle_button');
+  if (fullscreen_toggle_button) {
+    fullscreen_toggle_button.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+        const icon = document.getElementById('fullscreen_icon');
+        if (icon) icon.textContent = '🡼';
+      } else {
+        document.exitFullscreen();
+        const icon = document.getElementById('fullscreen_icon');
+        if (icon) icon.textContent = '⛶';
+      }
+    });
+    // Listen for fullscreen changes to update icon
+    document.addEventListener('fullscreenchange', () => {
+      const icon = document.getElementById('fullscreen_icon');
+      if (icon) icon.textContent = document.fullscreenElement ? '🡼' : '⛶';
+    });
+  }
 });
