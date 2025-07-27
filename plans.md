@@ -17,8 +17,8 @@
 - [ ] **Safety improvements for presets**: Moving to saved XY presets should first move to safe high Z height before XY movement
 - [ ] **Probe offset configuration**: Add configurable probe offset to account for probe tip thickness/diameter  
 - [ ] **Enhanced probing workflow**: Improve probing speed, extend probe distance, add double-check cycle (probe → up 3mm → slow probe → retract)
-- [ ] **Auto-generated preset names**: Remove text input requirement - generate automatic names (Preset 1, Preset 2, etc.) or use timestamps
-- [ ] **Preset renaming capability**: Add ability to rename existing presets after they're created (click to edit name)
+- [x] **Auto-generated preset names**: Remove text input requirement - generate automatic names (Preset 1, Preset 2, etc.) or use timestamps
+- [x] **Preset renaming capability**: Add ability to rename existing presets after they're created (click to edit name)
 - [ ] **Error display clearing**: Clear error display at bottom when clearing alarms/errors (if machine allows error clearing)
 [ ] Load gcode files from disk and send to CNC
 - [ ] job progres
