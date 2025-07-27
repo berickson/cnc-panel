@@ -769,11 +769,9 @@ class CNCSerial {
       return;
     }
     
-    // Move Z up first for safety
-    await this.send_command(`G0 Z${this.tool_change_position.z}`);
+    // Move Z to machine zero for safety
+    await this.send_command('G53 G0 Z0');
     await this.delay(500);
-    // Then move to X,Y position
-    await this.send_command(`G0 X${this.tool_change_position.x} Y${this.tool_change_position.y}`);
     
     // Mark Z offset as unknown after tool change
     this.z_offset_valid = false;
