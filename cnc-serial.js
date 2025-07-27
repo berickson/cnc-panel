@@ -827,141 +827,511 @@ class CNCSerial {
   
   update_xy_presets_ui() {
     if (!this.xy_presets_list) return;
+    
     this.xy_presets_list.innerHTML = '';
+    
     for (const [name, coords] of Object.entries(this.saved_xy_coordinates)) {
       const preset_container = document.createElement('div');
       preset_container.style.cssText = 'margin-bottom: 2px;';
-      preset_container.dataset.presetName = name;
+      preset_container.dataset.presetName = name; // Store name for reference
+      
       // Main button row
       const button_container = document.createElement('div');
       button_container.style.cssText = 'display: flex; gap: 2px;';
+      
       const goto_button = document.createElement('button');
       goto_button.textContent = name;
       goto_button.style.cssText = 'font-size: 12px; padding: 4px 6px; flex: 1; text-align: left;';
       goto_button.addEventListener('click', () => this.goto_saved_xy_position(name));
+      
       const edit_button = document.createElement('button');
       edit_button.textContent = '⚙';
       edit_button.style.cssText = 'font-size: 12px; padding: 4px 6px; background: #6c757d; color: white;';
       edit_button.addEventListener('click', () => this.toggle_preset_editor(name, preset_container));
+      
       button_container.appendChild(goto_button);
       button_container.appendChild(edit_button);
       preset_container.appendChild(button_container);
+      
       this.xy_presets_list.appendChild(preset_container);
     }
   }
+  
+  update_z_offset_status() {
+    // Update tool change button appearance
+    if (this.tool_change_button) {
+      if (this.z_offset_valid) {
+        this.tool_change_button.style.backgroundColor = '';
+        this.tool_change_button.textContent = 'Tool Change';
+      } else {
+        this.tool_change_button.style.backgroundColor = '#ff9800';
+        this.tool_change_button.textContent = 'Tool Change ⚠️';
+      }
+    }
 
-  delete_xy_preset(name) {
-    if (this.saved_xy_coordinates[name]) {
-      delete this.saved_xy_coordinates[name];
-      this.save_xy_coordinates();
-      this.update_xy_presets_ui();
-      this.log(`Deleted XY preset "${name}"`);
+    // Update Z position display
+    if (this.work_z_position) {
+      if (this.z_offset_valid) {
+        this.work_z_position.style.backgroundColor = '';
+        this.work_z_position.style.color = '';
+      } else {
+        this.work_z_position.style.backgroundColor = '#ffeb3b';
+        this.work_z_position.style.color = '#e65100';
+      }
+    }
+
+    // Show/hide warning message
+    if (this.tool_change_warning) {
+      if (this.z_offset_valid) {
+        this.tool_change_warning.style.display = 'none';
+      } else {
+        this.tool_change_warning.style.display = 'block';
+        this.tool_change_warning.textContent = '⚠️ Z offset unknown - probe or set Z before running jobs';
+      }
     }
   }
 
-  rename_xy_preset(old_name, new_name) {
-    if (old_name !== new_name && this.saved_xy_coordinates[old_name] && !this.saved_xy_coordinates[new_name]) {
-      this.saved_xy_coordinates[new_name] = this.saved_xy_coordinates[old_name];
-      delete this.saved_xy_coordinates[old_name];
-      this.save_xy_coordinates();
-      this.update_xy_presets_ui();
-      this.log(`Renamed XY preset "${old_name}" to "${new_name}"`);
+  parse_response(response) {
+    const trimmed = response.trim();
+    
+    // Enhanced error handling with specific messages
+    if (trimmed.startsWith('error:')) {
+      let error_msg = `CNC Error: ${trimmed}`;
+      
+      if (trimmed === 'error:8') {
+        error_msg += ' - G-code locked out. Machine may be in alarm state or limit switches active. Try moving away from limit switches first.';
+      } else if (trimmed === 'error:9') {
+        error_msg += ' - Homing not enabled. Send $22=1 to enable homing.';
+      }
+      
+      const translated_error = this.translate_grbl_error(trimmed);
+      this.current_error_message = `CNC Error: ${translated_error}`;
+      this.show_error(this.current_error_message);
+    }
+    
+    // Handle alarm messages
+    if (trimmed.startsWith('ALARM:')) {
+      const translated_alarm = this.translate_grbl_error(trimmed);
+      this.current_alarm_state = trimmed;
+      this.current_error_message = `CNC Alarm: ${translated_alarm}`;
+      this.show_error(this.current_error_message);
+    }
+    
+    // Also track activity for jog state changes (when machine enters/exits Jog state)
+    if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+      const status_data = trimmed.slice(1, -1);
+      const parts = status_data.split('|');
+      const state = parts[0];
+      
+      // Check if machine is no longer in alarm state
+      if (this.current_alarm_state && !state.startsWith('Alarm')) {
+        this.current_alarm_state = null;
+        // Clear error if it was an alarm
+        if (this.current_error_message && this.current_error_message.includes('Alarm')) {
+          this.clear_error();
+          this.current_error_message = null;
+          this.log('Alarm state cleared');
+        }
+      }
+      
+      // Check if machine is in alarm state
+      if (state.startsWith('Alarm')) {
+        if (!this.current_alarm_state) {
+          // If we see "Alarm" state but don't have a specific alarm code,
+          // this means the machine is in alarm mode but we missed the specific ALARM: message
+          this.current_alarm_state = 'ALARM:unknown';
+          this.current_error_message = 'CNC Alarm: Machine is in alarm state. Check communication log for specific alarm details.';
+          this.show_error(this.current_error_message);
+          this.log('Machine entered alarm state - check for previous ALARM: messages in log');
+        }
+      }
+      
+      // If we see the machine enter Jog state and we didn't send a jog command recently,
+      // this is external jogging activity
+      if (state === 'Jog' && this.pending_commands.size === 0) {
+        this.last_activity_time = Date.now();
+      }
+    }
+    
+    // Track activity for other non-status responses (errors, etc.)
+    if (!trimmed.startsWith('<') && 
+        !trimmed.endsWith('>') && 
+        trimmed !== 'ok' && 
+        !trimmed.startsWith('Grbl')) {
+      this.last_activity_time = Date.now();
+    }
+    
+    // Parse coordinate system parameters response from $# command
+    if (trimmed.startsWith('[G54:') || trimmed.startsWith('[G55:') || trimmed.startsWith('[G56:') || 
+        trimmed.startsWith('[G57:') || trimmed.startsWith('[G58:') || trimmed.startsWith('[G59:')) {
+      const match = trimmed.match(/\[G54:(.*?)\]/);
+      if (match) {
+        const coords = match[1].split(',');
+        if (coords.length >= 3) {
+          // Store the G54 work coordinate offset
+          this.last_work_offset = coords.map(coord => parseFloat(coord));
+          this.log(`Current G54 offset: ${this.last_work_offset}`);
+        }
+      }
+    }
+    
+    // Parse Grbl status report format: <State|WPos:0.000,0.000,0.000|...>
+    if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+      const status_data = trimmed.slice(1, -1); // Remove < >
+      const parts = status_data.split('|');
+      
+      if (parts.length > 0) {
+        // Machine state (Idle, Run, Hold, Home, etc.)
+        const state = parts[0];
+        if (this.machine_state) {
+          // Enhanced status code display with GRBL v1.1 compliant states
+          const status_display = this.translate_grbl_status(state);
+          
+          // Handle homing state management
+          if (state.startsWith('Home')) {
+            // We're actually in homing state
+            this.machine_state.textContent = status_display;
+            this.log(`*** MACHINE STATE CHANGE: ${status_display} ***`);
+            
+            // Update button to show we're actually homing
+            const home_button = document.getElementById('home_button');
+            if (home_button) {
+              home_button.style.backgroundColor = '#ff6b6b';
+              home_button.textContent = 'Homing...';
+              home_button.disabled = true;
+            }
+          } else if (state === 'Idle' && this.is_homing) {
+            // Homing just completed
+            this.is_homing = false;
+            this.machine_state.textContent = status_display;
+            
+            const home_button = document.getElementById('home_button');
+            if (home_button) {
+              home_button.style.backgroundColor = '';
+              home_button.textContent = 'Home';
+              home_button.disabled = false;
+            }
+            
+            this.log('*** HOMING COMPLETED - Machine returned to Idle ***');
+          } else if (!this.is_homing || (this.is_homing && Date.now() - this.homing_start_time > 5000)) {
+            // Normal state update, or homing has been going for more than 5 seconds
+            // (In case we missed the Home state)
+            this.machine_state.textContent = status_display;
+            
+            if (state.startsWith('Alarm') || state.startsWith('Hold')) {
+              this.log(`*** MACHINE STATE CHANGE: ${status_display} ***`);
+            }
+            
+            // Reset homing if we're in idle and it's been a while
+            if (state === 'Idle' && this.is_homing) {
+              this.is_homing = false;
+              const home_button = document.getElementById('home_button');
+              if (home_button) {
+                home_button.style.backgroundColor = '';
+                home_button.textContent = 'Home';
+                home_button.disabled = false;
+              }
+            }
+          }
+          // If we're in early homing state (< 5 seconds), don't override the "Starting Home..." text
+        }
+        
+        let machine_coords = null;
+        let work_coords = null;
+        let work_offset = null;
+        
+        // Parse machine position, work position, and work coordinate offset
+        for (const part of parts) {
+          if (part.startsWith('MPos:')) {
+            machine_coords = part.substring(5).split(',');
+          } else if (part.startsWith('WPos:')) {
+            work_coords = part.substring(5).split(',');
+          } else if (part.startsWith('WCO:')) {
+            work_offset = part.substring(4).split(',');
+            // Store the new work offset for future use
+            this.last_work_offset = work_offset.map(coord => parseFloat(coord));
+          }
+        }
+        
+        // Update machine position display
+        if (machine_coords && machine_coords.length >= 3) {
+          if (this.machine_x_position) this.machine_x_position.textContent = parseFloat(machine_coords[0]).toFixed(3);
+          if (this.machine_y_position) this.machine_y_position.textContent = parseFloat(machine_coords[1]).toFixed(3);
+          if (this.machine_z_position) this.machine_z_position.textContent = parseFloat(machine_coords[2]).toFixed(3);
+        }
+        
+        // Update work position display
+        if (work_coords && work_coords.length >= 3) {
+          // Direct WPos data available
+          if (this.work_x_position) this.work_x_position.textContent = parseFloat(work_coords[0]).toFixed(3);
+          if (this.work_y_position) this.work_y_position.textContent = parseFloat(work_coords[1]).toFixed(3);
+          if (this.work_z_position) this.work_z_position.textContent = parseFloat(work_coords[2]).toFixed(3);
+        } else if (machine_coords && machine_coords.length >= 3) {
+          // Calculate WPos from MPos using stored WCO: WPos = MPos - WCO
+          const work_x = parseFloat(machine_coords[0]) - this.last_work_offset[0];
+          const work_y = parseFloat(machine_coords[1]) - this.last_work_offset[1];
+          const work_z = parseFloat(machine_coords[2]) - this.last_work_offset[2];
+          
+          if (this.work_x_position) this.work_x_position.textContent = work_x.toFixed(3);
+          if (this.work_y_position) this.work_y_position.textContent = work_y.toFixed(3);
+          if (this.work_z_position) this.work_z_position.textContent = work_z.toFixed(3);
+        }
+      }
+    }
+    
+    // Handle other responses
+    if (trimmed === 'ok') {
+      // Command completed successfully
+    } else if (trimmed.startsWith('Grbl')) {
+      this.log(`System info: ${trimmed}`);
     }
   }
-
-  update_xy_preset_coords(name, x, y) {
-    if (this.saved_xy_coordinates[name]) {
-      this.saved_xy_coordinates[name].x = x;
-      this.saved_xy_coordinates[name].y = y;
-      this.saved_xy_coordinates[name].timestamp = new Date().toISOString();
-      this.save_xy_coordinates();
-      this.update_xy_presets_ui();
-      this.log(`Updated XY preset "${name}" to X${x} Y${y}`);
+  
+  log_status_request() {
+    if (this.last_log_was_status) {
+      this.status_poll_count++;
+      // Update the last line instead of adding a new one
+      this.update_last_log_line(`→ ? (x${this.status_poll_count})`);
+    } else {
+      this.status_poll_count = 1;
+      this.log(`→ ?`);
+      this.last_log_was_status = true;
     }
   }
-
-  toggle_preset_editor(preset_name, preset_container) {
-    // Remove any existing editor
-    const existing_editor = preset_container.querySelector('.preset-editor');
-    if (existing_editor) {
-      existing_editor.remove();
+  
+  log_status_response(response) {
+    if (this.last_log_was_status) {
+      // Always log important states like homing, alarms, and holds
+      if (response.includes('Home') || response.includes('Alarm') || response.includes('Hold') || response.includes('Door')) {
+        this.log(`← ${response}`);
+        this.last_log_was_status = false; // Reset so we can see the next important status change
+      }
+      // Don't log regular idle/run status responses to reduce spam
+      return;
+    } else {
+      this.log(`← ${response}`);
+    }
+  }
+  
+  update_last_log_line(new_text) {
+    const lines = this.log_element.textContent.split('\n');
+    if (lines.length > 0) {
+      // Replace the last non-empty line
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i].trim()) {
+          const timestamp = new Date().toLocaleTimeString();
+          lines[i] = `[${timestamp}] ${new_text}`;
+          break;
+        }
+      }
+      this.log_element.textContent = lines.join('\n');
+      this.log_element.scrollTop = this.log_element.scrollHeight;
+    }
+  }
+  
+  trim_log() {
+    const lines = this.log_element.textContent.split('\n');
+    if (lines.length > this.max_log_lines) {
+      // Keep only the last max_log_lines
+      const trimmed_lines = lines.slice(-this.max_log_lines);
+      this.log_element.textContent = trimmed_lines.join('\n');
+      
+      // Add trim notification without calling log() to avoid recursion
+      const timestamp = new Date().toLocaleTimeString();
+      this.log_element.textContent += `\n[${timestamp}] [Log trimmed to ${this.max_log_lines} lines]`;
+      this.log_element.scrollTop = this.log_element.scrollHeight;
+    }
+  }
+  
+  update_connection_status() {
+    if (this.is_connected) {
+      this.status_indicator.classList.add('connected');
+      this.status_text.textContent = 'Connected';
+      this.connect_button.disabled = true;
+      this.disconnect_button.disabled = false;
+      this.status_button.disabled = false;
+      if (this.clear_alarm_button) this.clear_alarm_button.disabled = false;
+      
+      // Enable manual controls when connected
+      this.enable_jog_controls(true);
+      
+      // Load and display XY presets
+      this.update_xy_presets_ui();
+      
+      // Initialize Z offset as unknown on connect
+      this.z_offset_valid = false;
+      this.update_z_offset_status();
+    } else {
+      this.status_indicator.classList.remove('connected');
+      this.status_text.textContent = 'Disconnected';
+      this.connect_button.disabled = false;
+      this.disconnect_button.disabled = true;
+      this.status_button.disabled = true;
+      if (this.clear_alarm_button) this.clear_alarm_button.disabled = true;
+      
+      // Disable manual controls when disconnected
+      this.enable_jog_controls(false);
+      
+      // Reset status display
+      if (this.machine_state) this.machine_state.textContent = 'Unknown';
+      
+      // Reset stored work offset
+      this.last_work_offset = [0, 0, 0];
+      
+      // Reset enhanced position displays
+      if (this.machine_x_position) this.machine_x_position.textContent = '0.000';
+      if (this.machine_y_position) this.machine_y_position.textContent = '0.000';
+      if (this.machine_z_position) this.machine_z_position.textContent = '0.000';
+      if (this.work_x_position) this.work_x_position.textContent = '0.000';
+      if (this.work_y_position) this.work_y_position.textContent = '0.000';
+      if (this.work_z_position) this.work_z_position.textContent = '0.000';
+    }
+  }
+  
+  enable_jog_controls(enabled) {
+    this.jog_x_plus_button.disabled = !enabled;
+    this.jog_x_minus_button.disabled = !enabled;
+    this.jog_y_plus_button.disabled = !enabled;
+    this.jog_y_minus_button.disabled = !enabled;
+    this.jog_z_plus_button.disabled = !enabled;
+    this.jog_z_minus_button.disabled = !enabled;
+    this.home_button.disabled = !enabled;
+    
+    // Enable/disable zero controls
+    this.zero_all_button.disabled = !enabled;
+    this.zero_x_button.disabled = !enabled;
+    this.zero_y_button.disabled = !enabled;
+    this.zero_z_button.disabled = !enabled;
+    this.zero_xy_button.disabled = !enabled;
+    this.go_work_zero_button.disabled = !enabled;
+    this.go_machine_zero_button.disabled = !enabled;
+  }
+  
+  set_step_size(size) {
+    this.step_size_input.value = size;
+  }
+  
+  get_step_size() {
+    return parseFloat(this.step_size_input.value) || 1;
+  }
+  
+  async home_all() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
       return;
     }
-    const coords = this.saved_xy_coordinates[preset_name];
-    if (!coords) return;
-    // Create editor panel
-    const editor = document.createElement('div');
-    editor.className = 'preset-editor';
-    editor.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px; margin-top: 2px; font-size: 11px;';
-    // Name editing
-    const name_row = document.createElement('div');
-    name_row.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px; align-items: center;';
-    const name_label = document.createElement('span');
-    name_label.textContent = 'Name:';
-    name_label.style.cssText = 'width: 40px; font-weight: bold;';
-    const name_input = document.createElement('input');
-    name_input.type = 'text';
-    name_input.value = preset_name;
-    name_input.style.cssText = 'font-size: 11px; padding: 2px 4px; flex: 1; border: 1px solid #ccc; border-radius: 2px;';
-    name_row.appendChild(name_label);
-    name_row.appendChild(name_input);
-    // Coordinates display/editing
-    const coords_row = document.createElement('div');
-    coords_row.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px; align-items: center;';
-    const coords_label = document.createElement('span');
-    coords_label.textContent = 'MPos:';
-    coords_label.style.cssText = 'width: 40px; font-weight: bold;';
-    const x_input = document.createElement('input');
-    x_input.type = 'number';
-    x_input.step = '0.001';
-    x_input.value = coords.x;
-    x_input.style.cssText = 'font-size: 11px; padding: 2px 4px; width: 60px; border: 1px solid #ccc; border-radius: 2px;';
-    const y_input = document.createElement('input');
-    y_input.type = 'number';
-    y_input.step = '0.001';
-    y_input.value = coords.y;
-    y_input.style.cssText = 'font-size: 11px; padding: 2px 4px; width: 60px; border: 1px solid #ccc; border-radius: 2px;';
-    coords_row.appendChild(coords_label);
-    coords_row.appendChild(x_input);
-    coords_row.appendChild(y_input);
-    // Action buttons
-    const actions_row = document.createElement('div');
-    actions_row.style.cssText = 'display: flex; gap: 6px; margin-top: 4px;';
-    const save_button = document.createElement('button');
-    save_button.textContent = 'Save';
-    save_button.style.cssText = 'font-size: 11px; padding: 2px 8px; background: #007bff; color: white; border-radius: 2px;';
-    save_button.addEventListener('click', () => {
-      const new_name = name_input.value.trim();
-      const new_x = parseFloat(x_input.value);
-      const new_y = parseFloat(y_input.value);
-      if (new_name && (new_name !== preset_name)) {
-        this.rename_xy_preset(preset_name, new_name);
-        preset_name = new_name;
+    
+    // Set homing state flags
+    this.is_homing = true;
+    this.homing_start_time = Date.now();
+    
+    // Immediately update UI to show homing has started
+    if (this.machine_state) {
+      this.machine_state.textContent = 'Starting Home...';
+    }
+    
+    // Visual feedback on home button
+    const home_button = document.getElementById('home_button');
+    if (home_button) {
+      home_button.style.backgroundColor = '#ffc107';
+      home_button.textContent = 'Homing...';
+      home_button.disabled = true;
+    }
+    
+    this.log('*** STARTING HOME ALL AXES ***');
+    this.log('Note: Homing requires limit switches to be connected and enabled in Grbl settings ($22=1)');
+    this.log('Watch for "Home" state in machine status during homing cycle');
+    this.log('Note: GRBL may not respond to status requests during homing - this is normal');
+    
+    // Mark activity for homing
+    this.last_activity_time = Date.now();
+    
+    await this.send_command('$H');
+    
+    // Reset button after a delay (will be overridden by actual status updates)
+    setTimeout(() => {
+      if (home_button && this.is_homing) {
+        home_button.style.backgroundColor = '';
+        home_button.textContent = 'Home';
+        home_button.disabled = false;
+        this.is_homing = false;
+        this.log('*** HOMING TIMEOUT - Resetting button ***');
       }
-      this.update_xy_preset_coords(preset_name, new_x, new_y);
-      editor.remove();
-    });
-    const delete_button = document.createElement('button');
-    delete_button.textContent = 'Delete';
-    delete_button.style.cssText = 'font-size: 11px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 2px;';
-    delete_button.addEventListener('click', () => {
-      this.delete_xy_preset(preset_name);
-      editor.remove();
-    });
-    const cancel_button = document.createElement('button');
-    cancel_button.textContent = 'Cancel';
-    cancel_button.style.cssText = 'font-size: 11px; padding: 2px 8px; background: #6c757d; color: white; border-radius: 2px;';
-    cancel_button.addEventListener('click', () => {
-      editor.remove();
-    });
-    actions_row.appendChild(save_button);
-    actions_row.appendChild(delete_button);
-    actions_row.appendChild(cancel_button);
-    // Assemble editor
-    editor.appendChild(name_row);
-    editor.appendChild(coords_row);
-    editor.appendChild(actions_row);
-    preset_container.appendChild(editor);
+    }, 30000); // 30 second timeout
+  }
+  
+  async home_axis(axis) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log(`Starting home ${axis} axis...`);
+    this.log('Note: Homing requires limit switches to be connected and enabled in Grbl settings ($22=1)');
+    this.log('Watch for "Home" state in machine status during homing cycle');
+    await this.send_command(`$H${axis}`);
+  }
+  
+  async zero_all() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Setting all axes to zero...');
+    await this.send_command('G10 L20 P1 X0 Y0 Z0');
+    
+    // Mark Z offset as valid since we just set it
+    this.z_offset_valid = true;
+    this.update_z_offset_status();
+    this.log('Z offset now valid');
+  }
+  
+  async zero_axis(axis) {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log(`Setting ${axis} axis to zero...`);
+    await this.send_command(`G10 L20 P1 ${axis}0`);
+    
+    // If Z axis was zeroed, mark offset as valid
+    if (axis === 'Z') {
+      this.z_offset_valid = true;
+      this.update_z_offset_status();
+      this.log('Z offset now valid');
+    }
+  }
+  
+  async zero_xy() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Setting X and Y axes to zero...');
+    await this.send_command('G10 L20 P1 X0 Y0');
+  }
+  
+  async go_work_zero() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Moving to work coordinate X0 Y0 (preserving Z)...');
+    await this.send_command('G0 X0 Y0');
+  }
+  
+  async go_machine_zero() {
+    if (!this.is_connected) {
+      this.show_error('Not connected to CNC');
+      return;
+    }
+    
+    this.log('Moving to machine coordinate X0 Y0 (preserving Z)...');
+    await this.send_command('G53 G0 X0 Y0');
   }
   
   log(message) {
@@ -1040,85 +1410,189 @@ class CNCSerial {
   }
   
   toggle_preset_editor(preset_name, preset_container) {
-    // Remove any existing editor
+    // Check if editor is already open
     const existing_editor = preset_container.querySelector('.preset-editor');
     if (existing_editor) {
       existing_editor.remove();
       return;
     }
+    
     const coords = this.saved_xy_coordinates[preset_name];
     if (!coords) return;
+    
     // Create editor panel
     const editor = document.createElement('div');
     editor.className = 'preset-editor';
     editor.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 6px; margin-top: 2px; font-size: 11px;';
+    
     // Name editing
     const name_row = document.createElement('div');
     name_row.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px; align-items: center;';
+    
     const name_label = document.createElement('span');
     name_label.textContent = 'Name:';
     name_label.style.cssText = 'width: 40px; font-weight: bold;';
+    
     const name_input = document.createElement('input');
     name_input.type = 'text';
     name_input.value = preset_name;
     name_input.style.cssText = 'font-size: 11px; padding: 2px 4px; flex: 1; border: 1px solid #ccc; border-radius: 2px;';
+    
     name_row.appendChild(name_label);
     name_row.appendChild(name_input);
+    
     // Coordinates display/editing
     const coords_row = document.createElement('div');
     coords_row.style.cssText = 'display: flex; gap: 4px; margin-bottom: 4px; align-items: center;';
+    
     const coords_label = document.createElement('span');
     coords_label.textContent = 'MPos:';
     coords_label.style.cssText = 'width: 40px; font-weight: bold;';
+    
     const x_input = document.createElement('input');
     x_input.type = 'number';
     x_input.step = '0.001';
     x_input.value = coords.x;
     x_input.style.cssText = 'font-size: 11px; padding: 2px 4px; width: 60px; border: 1px solid #ccc; border-radius: 2px;';
+    
     const y_input = document.createElement('input');
     y_input.type = 'number';
     y_input.step = '0.001';
     y_input.value = coords.y;
     y_input.style.cssText = 'font-size: 11px; padding: 2px 4px; width: 60px; border: 1px solid #ccc; border-radius: 2px;';
+    
     coords_row.appendChild(coords_label);
+    coords_row.appendChild(document.createTextNode('X:'));
     coords_row.appendChild(x_input);
+    coords_row.appendChild(document.createTextNode('Y:'));
     coords_row.appendChild(y_input);
+    
     // Action buttons
     const actions_row = document.createElement('div');
-    actions_row.style.cssText = 'display: flex; gap: 6px; margin-top: 4px;';
+    actions_row.style.cssText = 'display: flex; gap: 2px; justify-content: flex-end;';
+    
     const save_button = document.createElement('button');
     save_button.textContent = 'Save';
-    save_button.style.cssText = 'font-size: 11px; padding: 2px 8px; background: #007bff; color: white; border-radius: 2px;';
+    save_button.style.cssText = 'font-size: 11px; padding: 3px 8px; background: #28a745; color: white; border: none; border-radius: 2px;';
     save_button.addEventListener('click', () => {
-      const new_name = name_input.value.trim();
-      const new_x = parseFloat(x_input.value);
-      const new_y = parseFloat(y_input.value);
-      if (new_name && (new_name !== preset_name)) {
-        this.rename_xy_preset(preset_name, new_name);
-        preset_name = new_name;
-      }
-      this.update_xy_preset_coords(preset_name, new_x, new_y);
+      this.save_preset_changes(preset_name, name_input.value.trim(), parseFloat(x_input.value), parseFloat(y_input.value));
       editor.remove();
     });
+    
     const delete_button = document.createElement('button');
     delete_button.textContent = 'Delete';
-    delete_button.style.cssText = 'font-size: 11px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 2px;';
+    delete_button.style.cssText = 'font-size: 11px; padding: 3px 8px; background: #dc3545; color: white; border: none; border-radius: 2px;';
     delete_button.addEventListener('click', () => {
-      this.delete_xy_preset(preset_name);
-      editor.remove();
+      if (confirm(`Delete preset "${preset_name}"?`)) {
+        delete this.saved_xy_coordinates[preset_name];
+        this.save_xy_coordinates();
+        this.update_xy_presets_ui();
+        this.log(`Deleted machine XY position "${preset_name}"`);
+      }
     });
+    
     const cancel_button = document.createElement('button');
     cancel_button.textContent = 'Cancel';
-    cancel_button.style.cssText = 'font-size: 11px; padding: 2px 8px; background: #6c757d; color: white; border-radius: 2px;';
+    cancel_button.style.cssText = 'font-size: 11px; padding: 3px 8px; background: #6c757d; color: white; border: none; border-radius: 2px;';
     cancel_button.addEventListener('click', () => {
       editor.remove();
     });
+    
     actions_row.appendChild(save_button);
     actions_row.appendChild(delete_button);
     actions_row.appendChild(cancel_button);
+    
     // Assemble editor
     editor.appendChild(name_row);
     editor.appendChild(coords_row);
     editor.appendChild(actions_row);
+    
     preset_container.appendChild(editor);
+    
+    // Focus name input for quick editing
+    name_input.focus();
+    name_input.select();
   }
+  
+  save_preset_changes(old_name, new_name, new_x, new_y) {
+    // Validate inputs
+    if (!new_name) {
+      this.show_error('Preset name cannot be empty');
+      return;
+    }
+    
+    if (isNaN(new_x) || isNaN(new_y)) {
+      this.show_error('Invalid coordinates');
+      return;
+    }
+    
+    // Check for name conflicts (unless it's the same name)
+    if (new_name !== old_name && this.saved_xy_coordinates[new_name]) {
+      this.show_error(`Preset name "${new_name}" already exists`);
+      return;
+    }
+    
+    // Remove old preset if name changed
+    if (new_name !== old_name) {
+      delete this.saved_xy_coordinates[old_name];
+    }
+    
+    // Save updated preset
+    this.saved_xy_coordinates[new_name] = {
+      x: new_x,
+      y: new_y,
+      timestamp: new Date().toISOString()
+    };
+    
+    this.save_xy_coordinates();
+    this.update_xy_presets_ui();
+    
+    if (new_name !== old_name) {
+      this.log(`Renamed preset "${old_name}" to "${new_name}" and updated coordinates to X${new_x} Y${new_y}`);
+    } else {
+      this.log(`Updated preset "${new_name}" coordinates to X${new_x} Y${new_y}`);
+    }
+  }
+  
+  toggle_fullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      this.set_fullscreen_icon(true);
+    } else {
+      document.exitFullscreen();
+      this.set_fullscreen_icon(false);
+    }
+  }
+
+  set_fullscreen_icon(is_fullscreen) {
+    if (this.fullscreen_icon) {
+      this.fullscreen_icon.textContent = is_fullscreen ? '🡼' : '⛶';
+    }
+  }
+
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', () => {
+  const serial = new CNCSerial();
+  // Setup fullscreen button event listener here to ensure DOM is ready
+  const fullscreen_toggle_button = document.getElementById('fullscreen_toggle_button');
+  if (fullscreen_toggle_button) {
+    fullscreen_toggle_button.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+        const icon = document.getElementById('fullscreen_icon');
+        if (icon) icon.textContent = '🡼';
+      } else {
+        document.exitFullscreen();
+        const icon = document.getElementById('fullscreen_icon');
+        if (icon) icon.textContent = '⛶';
+      }
+    });
+    // Listen for fullscreen changes to update icon
+    document.addEventListener('fullscreenchange', () => {
+      const icon = document.getElementById('fullscreen_icon');
+      if (icon) icon.textContent = document.fullscreenElement ? '🡼' : '⛶';
+    });
+  }
+});
