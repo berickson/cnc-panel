@@ -27,7 +27,7 @@ class CNCSerial {
     this.saved_xy_coordinates = this.load_saved_xy_coordinates();
     this.z_offset_valid = false; // Track if Z offset is reliable
     this.last_tool_change_time = null;
-    this.tool_change_position = { x: -10, y: -10, z: 5 }; // Safe position for tool changes
+    this.tool_change_position = { x: 0, y: 0, z: 0 }; // Safe position for tool changes
     
     // UI elements
     this.connect_button = document.getElementById('connect_button');
@@ -71,7 +71,7 @@ class CNCSerial {
     this.machine_x_position = document.getElementById('machine_x_position');
     this.machine_y_position = document.getElementById('machine_y_position');
     this.machine_z_position = document.getElementById('machine_z_position');
-    this.work_x_position = document.getElementById('work_x_position');
+    this.work_x_position = document. etElementById('work_x_position');
     this.work_y_position = document.getElementById('work_y_position');
     this.work_z_position = document.getElementById('work_z_position');
     
@@ -275,7 +275,7 @@ class CNCSerial {
     
     const step_size = this.get_step_size();
     const distance = direction === '+' ? step_size : -step_size;
-    const command = `$J=G91${axis}${distance}F1000`;
+    const command = `$J=G91 ${axis}${distance} F1000`;
     
     // Mark activity time for jog command
     this.last_activity_time = Date.now();
@@ -298,7 +298,7 @@ class CNCSerial {
     // Send continuous jog command - use proper $J= format with large distance
     const feed_rate = 1000; // mm/min
     const distance = direction === '+' ? '1000' : '-1000';
-    const command = `$J=G91${axis}${distance}F${feed_rate}`;
+    const command = `$J=G91 ${axis}${distance} F${feed_rate}`;
     this.send_command(command);
   }
   
@@ -789,8 +789,11 @@ class CNCSerial {
     }
     
     // Move Z to machine zero for safety
-    await this.send_command('G53 G0 Z0');
+    await this.send_command(`G53 G0 Z${this.tool_change_position.z}`);
     await this.delay(500);
+
+    // Move XY to tool change position (assumed to be at machine zero)
+    await this.send_command(`G53 G0 X${this.tool_change_position.x} Y${this.tool_change_position.y}`);
     
     // Mark Z offset as unknown after tool change
     this.z_offset_valid = false;
