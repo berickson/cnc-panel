@@ -71,7 +71,7 @@ class CNCSerial {
     this.machine_x_position = document.getElementById('machine_x_position');
     this.machine_y_position = document.getElementById('machine_y_position');
     this.machine_z_position = document.getElementById('machine_z_position');
-    this.work_x_position = document. etElementById('work_x_position');
+    this.work_x_position = document.getElementById('work_x_position');
     this.work_y_position = document.getElementById('work_y_position');
     this.work_z_position = document.getElementById('work_z_position');
     
